@@ -3,16 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="style.css" />
     <title>Sudoku Zen Multiplayer</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Socket.io Client -->
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- FontAwesome Icons -->
     <link
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
       rel="stylesheet"
     />
-    <script src="main.js"></script>
+    <!-- Notre style personnalisé -->
+    <link rel="stylesheet" href="style.css" />
     <link rel="shortcut icon" href="favicon.png" type="image/png">
   </head>
   <body class="h-screen w-full text-slate-800 overflow-hidden">
@@ -102,9 +104,7 @@
 
         <div class="text-left mb-6">
           <p class="font-bold text-slate-700 mb-2">Joueurs :</p>
-          <ul id="lobby-player-list" class="space-y-2">
-            <!-- Liste générée -->
-          </ul>
+          <ul id="lobby-player-list" class="space-y-2"></ul>
         </div>
 
         <div id="host-controls" class="hidden">
@@ -126,7 +126,7 @@
       id="screen-game"
       class="screen h-full w-full flex-col items-center justify-center relative"
     >
-      <!-- Scoreboard / Progress (Multiplayer only) -->
+      <!-- Scoreboard (Multiplayer) -->
       <div
         id="multi-hud"
         class="hidden absolute top-4 right-4 w-48 bg-white/90 backdrop-blur p-3 rounded-xl shadow-lg z-10"
@@ -134,9 +134,7 @@
         <h3 class="text-xs font-bold uppercase text-slate-400 mb-2">
           Classement
         </h3>
-        <div id="players-hud" class="space-y-2 text-sm font-bold">
-          <!-- Scores -->
-        </div>
+        <div id="players-hud" class="space-y-2 text-sm font-bold"></div>
       </div>
 
       <!-- Header -->
@@ -163,19 +161,32 @@
           class="sudoku-grid bg-white rounded-lg overflow-hidden mb-6"
         ></div>
 
-        <!-- Controls -->
+        <!-- Controls (Barre d'outils complétée) -->
         <div class="flex justify-between items-center mb-4 px-2">
+          <!-- UNDO -->
+          <button
+            onclick="game.undo()"
+            class="flex flex-col items-center text-white hover:text-green-100"
+            title="Annuler"
+          >
+            <i class="fas fa-undo text-2xl drop-shadow-md"></i>
+          </button>
+
+          <!-- ERASE -->
           <button
             onclick="game.handleInput(0)"
             class="flex flex-col items-center text-white hover:text-green-100"
+            title="Gomme"
           >
             <i class="fas fa-eraser text-2xl drop-shadow-md"></i>
           </button>
 
+          <!-- NOTE -->
           <button
             id="btn-note"
             onclick="game.toggleNoteMode()"
             class="flex flex-col items-center text-white hover:text-green-100 relative"
+            title="Mode Crayon"
           >
             <div
               id="note-indicator"
@@ -185,9 +196,20 @@
             </div>
           </button>
 
+          <!-- RESET -->
+          <button
+            onclick="game.resetBoard()"
+            class="flex flex-col items-center text-white hover:text-green-100"
+            title="Recommencer"
+          >
+            <i class="fas fa-redo text-2xl drop-shadow-md"></i>
+          </button>
+
+          <!-- QUIT -->
           <button
             onclick="app.quitGame()"
             class="flex flex-col items-center text-white hover:text-red-200"
+            title="Quitter"
           >
             <i class="fas fa-sign-out-alt text-2xl drop-shadow-md"></i>
           </button>
@@ -252,5 +274,8 @@
         </div>
       </div>
     </div>
+
+    <!-- Notre logique de jeu -->
+    <script src="main.js"></script>
   </body>
 </html>

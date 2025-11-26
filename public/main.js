@@ -1,8 +1,15 @@
 // --- APP MANAGEMENT (SCREENS & SOCKET) ---
-const socket = io();
+
+let socket;
+try {
+  socket = io();
+} catch (e) {
+  console.warn("Socket.io non détecté.");
+  socket = { on: () => {}, emit: () => {} };
+}
 
 const app = {
-  currentMode: "solo", // 'solo', 'speedrun', 'territory'
+  currentMode: "solo",
   roomCode: null,
   username: "Joueur",
   myId: null,
@@ -51,7 +58,7 @@ const app = {
 
 socket.on("room_created", (code) => {
   app.roomCode = code;
-  app.joinRoom(); // Auto join own room
+  app.joinRoom();
 });
 
 socket.on("joined_success", (data) => {
@@ -84,24 +91,20 @@ socket.on("update_lobby", (data) => {
 socket.on("game_started", (data) => {
   app.showScreen("screen-game");
   document.getElementById("multi-hud").classList.remove("hidden");
-
   let modeName =
     app.currentMode === "speedrun" ? "Course" : "Guerre de Territoire";
   document.getElementById(
     "mode-display"
   ).innerText = `Multijoueur : ${modeName}`;
-
   game.initMultiplayer(data.initial, data.players);
 });
 
 socket.on("territory_update", (data) => {
-  // data: { index, value, ownerId, color, scores }
   game.updateTerritory(data);
   updateHudScores(data.scores);
 });
 
 socket.on("progress_update", (playersData) => {
-  // Met à jour les barres de progression
   updateHudProgress(playersData);
 });
 
@@ -113,7 +116,6 @@ socket.on("game_over", (data) => {
 socket.on("error", (msg) => alert(msg));
 
 function updateHudScores(scores) {
-  // Affichage simple pour Territoire
   const hud = document.getElementById("players-hud");
   hud.innerHTML = "";
   scores
@@ -128,7 +130,6 @@ function updateHudScores(scores) {
 }
 
 function updateHudProgress(players) {
-  // Affichage simple pour Speedrun
   const hud = document.getElementById("players-hud");
   hud.innerHTML = "";
   players
@@ -138,30 +139,26 @@ function updateHudProgress(players) {
       const playerObj = game.players.find((pl) => pl.id === p.id);
       div.className = "mb-1";
       div.innerHTML = `
-                <div class="flex justify-between text-xs mb-1"><span style="color:${
-                  playerObj.color
-                }">${p.username}</span> <span>${Math.round(
-        p.progress
-      )}%</span></div>
-                <div class="h-1 bg-slate-200 rounded-full overflow-hidden">
-                    <div class="h-full bg-green-500 transition-all duration-500" style="width: ${
-                      p.progress
-                    }%"></div>
-                </div>
-             `;
+          <div class="flex justify-between text-xs mb-1"><span style="color:${
+            playerObj.color
+          }">${p.username}</span> <span>${Math.round(p.progress)}%</span></div>
+          <div class="h-1 bg-slate-200 rounded-full overflow-hidden">
+              <div class="h-full bg-green-500 transition-all duration-500" style="width: ${
+                p.progress
+              }%"></div>
+          </div>
+       `;
       hud.appendChild(div);
     });
 }
 
-// --- GAME LOGIC (Modified for Multi) ---
+// --- GAME LOGIC ---
 
 class SudokuLogic {
-  // Version Solo uniquement, le multi est géré par le serveur
   constructor() {
     this.grid = new Array(81).fill(0);
   }
   isValid(grid, row, col, num) {
-    /* ... logique identique ... */
     for (let x = 0; x < 9; x++) if (grid[row * 9 + x] === num) return false;
     for (let x = 0; x < 9; x++) if (grid[x * 9 + col] === num) return false;
     let sr = row - (row % 3),
@@ -227,11 +224,12 @@ class Game {
     this.localLogic = new SudokuLogic();
     this.board = [];
     this.initial = [];
-    this.solution = []; // Seulement en mode Solo
+    this.solution = [];
     this.notes = {};
+    this.history = []; // Pour Undo
     this.selectedCellIndex = null;
     this.isNoteMode = false;
-    this.players = []; // Multi info
+    this.players = [];
 
     this.gridEl = document.getElementById("grid-container");
     this.gridEl.addEventListener("click", (e) => {
@@ -246,15 +244,38 @@ class Game {
     this.board = [...data.initial];
     this.solution = [...data.solution];
     this.notes = {};
+    this.history = [];
     this.renderGrid();
   }
 
   initMultiplayer(initialGrid, playersList) {
     this.initial = [...initialGrid];
     this.board = [...initialGrid];
-    this.solution = null; // On ne connait pas la solution en multi client-side !
+    this.solution = null;
     this.players = playersList;
     this.notes = {};
+    this.history = [];
+    this.renderGrid();
+  }
+
+  resetBoard() {
+    if (app.currentMode === "territory")
+      return alert("Impossible de reset en mode Territoire !");
+    if (confirm("Voulez-vous recommencer cette grille à zéro ?")) {
+      this.board = [...this.initial];
+      this.notes = {};
+      this.history = [];
+      this.renderGrid();
+      // Reset progress bar in speedrun
+      if (app.currentMode === "speedrun") this.checkProgress();
+    }
+  }
+
+  undo() {
+    if (this.history.length === 0) return;
+    const lastState = this.history.pop();
+    this.board = [...lastState.board];
+    this.notes = JSON.parse(JSON.stringify(lastState.notes)); // Deep copy
     this.renderGrid();
   }
 
@@ -270,27 +291,60 @@ class Game {
       } else if (this.board[i] !== 0) {
         cell.textContent = this.board[i];
         cell.classList.add("user-input");
-        // En solo, on check l'erreur direct. En multi, c'est le serveur qui validera.
         if (app.currentMode === "solo" && this.board[i] !== this.solution[i]) {
           cell.classList.add("error");
         }
       }
-      // Notes rendering...
-      if (this.board[i] === 0 && this.notes[i]) {
-        /* ... */
+
+      if (this.board[i] === 0 && this.notes[i] && this.notes[i].length > 0) {
+        const noteGrid = document.createElement("div");
+        noteGrid.className = "note-grid";
+        for (let n = 1; n <= 9; n++) {
+          const span = document.createElement("span");
+          span.className = "note-num";
+          if (this.notes[i].includes(n)) span.textContent = n;
+          noteGrid.appendChild(span);
+        }
+        cell.appendChild(noteGrid);
       }
 
       this.gridEl.appendChild(cell);
     }
+    this.updateHighlights();
   }
 
   selectCell(index) {
     this.selectedCellIndex = index;
+    this.updateHighlights();
+  }
+
+  updateHighlights() {
     document
       .querySelectorAll(".cell")
-      .forEach((c) => c.classList.remove("selected"));
-    const cell = document.querySelector(`.cell[data-index='${index}']`);
+      .forEach((c) =>
+        c.classList.remove("selected", "highlighted", "same-number")
+      );
+    if (this.selectedCellIndex === null) return;
+
+    const cell = document.querySelector(
+      `.cell[data-index='${this.selectedCellIndex}']`
+    );
     if (cell) cell.classList.add("selected");
+
+    // Highlight logic (Row, Col, Box, Same Num)
+    const row = Math.floor(this.selectedCellIndex / 9);
+    const col = this.selectedCellIndex % 9;
+    const val = this.board[this.selectedCellIndex];
+
+    document.querySelectorAll(".cell").forEach((c) => {
+      const idx = parseInt(c.dataset.index);
+      const r = Math.floor(idx / 9);
+      const co = idx % 9;
+
+      if (r === row || co === col) c.classList.add("highlighted"); // Simplified highlight
+      if (val !== 0 && (this.board[idx] === val || this.initial[idx] === val))
+        c.classList.add("same-number");
+    });
   }
 
   toggleNoteMode() {
@@ -305,45 +359,65 @@ class Game {
     if (this.selectedCellIndex === null) return;
     if (this.initial[this.selectedCellIndex] !== 0) return;
 
+    // Save History for Undo (Local only)
+    this.history.push({
+      board: [...this.board],
+      notes: JSON.parse(JSON.stringify(this.notes)),
+    });
+    if (this.history.length > 20) this.history.shift();
+
     // Logique Multi
     if (app.currentMode !== "solo") {
       if (num !== 0 && !this.isNoteMode) {
-        // Envoyer le coup au serveur
         socket.emit("submit_move", {
           roomCode: app.roomCode,
           index: this.selectedCellIndex,
           value: num,
         });
-
-        // Optimistic UI pour Speedrun (on affiche en attendant la confirm)
         if (app.currentMode === "speedrun") {
           this.board[this.selectedCellIndex] = num;
-          const cell = document.querySelector(
-            `.cell[data-index='${this.selectedCellIndex}']`
-          );
-          cell.textContent = num;
-          cell.classList.add("user-input");
+          this.notes[this.selectedCellIndex] = []; // Clear notes
+          this.renderGrid();
           this.checkProgress();
         }
+      } else if (this.isNoteMode) {
+        this.toggleNoteNumber(num);
+        this.renderGrid();
+      } else if (num === 0) {
+        // Erase (Speedrun only? or handled by invalid move?)
+        // For simplicity allow local erase
+        this.board[this.selectedCellIndex] = 0;
+        this.renderGrid();
       }
       return;
     }
 
-    // Logique Solo (inchangée)
+    // Logique Solo
     if (this.isNoteMode) {
-      // Gestion notes...
+      this.toggleNoteNumber(num);
     } else {
       this.board[this.selectedCellIndex] = num;
-      this.renderGrid();
+      this.notes[this.selectedCellIndex] = [];
+      if (num === 0) this.board[this.selectedCellIndex] = 0;
     }
+    this.renderGrid();
+  }
+
+  toggleNoteNumber(num) {
+    if (num === 0) {
+      this.notes[this.selectedCellIndex] = [];
+      return;
+    }
+    if (!this.notes[this.selectedCellIndex])
+      this.notes[this.selectedCellIndex] = [];
+    const idx = this.notes[this.selectedCellIndex].indexOf(num);
+    if (idx > -1) this.notes[this.selectedCellIndex].splice(idx, 1);
+    else this.notes[this.selectedCellIndex].push(num);
   }
 
   updateTerritory(data) {
-    // data: { index, value, ownerId, color }
     this.board[data.index] = data.value;
     const cell = document.querySelector(`.cell[data-index='${data.index}']`);
-
-    // Animation et mise à jour visuelle
     cell.textContent = data.value;
     cell.classList.remove("user-input");
     cell.classList.add("owned", "animate-pop");
@@ -352,7 +426,6 @@ class Game {
   }
 
   checkProgress() {
-    // Pour le speedrun, on envoie un % d'avancement
     let filled = this.board.filter((x) => x !== 0).length;
     let total = 81;
     let percent = (filled / total) * 100;
