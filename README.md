@@ -6,7 +6,7 @@ Sudoku with different game modes, both single-player and multiplayer (Speer Run 
 
 ## How to install :
 
-To install, in the terminal
+In the terminal :
 
 - type "npm install"
 - after "node server.js"
