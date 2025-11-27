@@ -26,19 +26,27 @@ const app = {
     app.showScreen("screen-game");
     document.getElementById("multi-hud").classList.add("hidden");
     document.getElementById("mode-display").innerText = "Mode Solo";
+    document.getElementById("btn-pause").classList.remove("hidden"); // Afficher Pause
     game.initSolo();
   },
 
+  // 1. Demande de création : on ne demande PAS de code ici
   createRoom: (mode) => {
     const name = document.getElementById("username").value || "Joueur";
     app.username = name;
     socket.emit("create_room", { username: name, mode: mode });
   },
 
-  joinRoom: () => {
-    const name = document.getElementById("username").value || "Joueur";
+  // 2. Rejoindre via le bouton "Go" (Input manuel)
+  joinRoomFromInput: () => {
     const code = document.getElementById("room-code-input").value.toUpperCase();
     if (!code) return alert("Entrez un code !");
+    app.joinRoom(code);
+  },
+
+  // 3. Logique interne pour rejoindre
+  joinRoom: (code) => {
+    const name = document.getElementById("username").value || "Joueur";
     app.username = name;
     socket.emit("join_room", { roomCode: code, username: name });
   },
@@ -56,9 +64,11 @@ const app = {
 
 // --- SOCKET EVENTS ---
 
+// Réponse du serveur après "createRoom" : on reçoit le code généré
 socket.on("room_created", (code) => {
   app.roomCode = code;
-  app.joinRoom();
+  // On rejoint automatiquement avec ce code
+  app.joinRoom(code);
 });
 
 socket.on("joined_success", (data) => {
@@ -91,11 +101,14 @@ socket.on("update_lobby", (data) => {
 socket.on("game_started", (data) => {
   app.showScreen("screen-game");
   document.getElementById("multi-hud").classList.remove("hidden");
+  document.getElementById("btn-pause").classList.add("hidden"); // Pas de pause en multi
+
   let modeName =
     app.currentMode === "speedrun" ? "Course" : "Guerre de Territoire";
   document.getElementById(
     "mode-display"
   ).innerText = `Multijoueur : ${modeName}`;
+
   game.initMultiplayer(data.initial, data.players);
 });
 
@@ -109,11 +122,14 @@ socket.on("progress_update", (playersData) => {
 });
 
 socket.on("game_over", (data) => {
+  game.stopTimer();
   alert(`Partie terminée ! Vainqueur : ${data.winner}`);
   setTimeout(() => location.reload(), 3000);
 });
 
 socket.on("error", (msg) => alert(msg));
+
+// --- UI UPDATES ---
 
 function updateHudScores(scores) {
   const hud = document.getElementById("players-hud");
@@ -123,9 +139,11 @@ function updateHudScores(scores) {
     .forEach((s) => {
       const div = document.createElement("div");
       const player = game.players.find((p) => p.id === s.id);
-      div.className = "flex justify-between";
-      div.innerHTML = `<span style="color:${player.color}">${player.username}</span> <span>${s.score} pts</span>`;
-      hud.appendChild(div);
+      if (player) {
+        div.className = "flex justify-between";
+        div.innerHTML = `<span style="color:${player.color}">${player.username}</span> <span>${s.score} pts</span>`;
+        hud.appendChild(div);
+      }
     });
 }
 
@@ -137,18 +155,22 @@ function updateHudProgress(players) {
     .forEach((p) => {
       const div = document.createElement("div");
       const playerObj = game.players.find((pl) => pl.id === p.id);
-      div.className = "mb-1";
-      div.innerHTML = `
-          <div class="flex justify-between text-xs mb-1"><span style="color:${
-            playerObj.color
-          }">${p.username}</span> <span>${Math.round(p.progress)}%</span></div>
-          <div class="h-1 bg-slate-200 rounded-full overflow-hidden">
-              <div class="h-full bg-green-500 transition-all duration-500" style="width: ${
-                p.progress
-              }%"></div>
-          </div>
-       `;
-      hud.appendChild(div);
+      if (playerObj) {
+        div.className = "mb-1";
+        div.innerHTML = `
+              <div class="flex justify-between text-xs mb-1"><span style="color:${
+                playerObj.color
+              }">${p.username}</span> <span>${Math.round(
+          p.progress
+        )}%</span></div>
+              <div class="h-1 bg-slate-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-green-500 transition-all duration-500" style="width: ${
+                    p.progress
+                  }%"></div>
+              </div>
+           `;
+        hud.appendChild(div);
+      }
     });
 }
 
@@ -226,16 +248,54 @@ class Game {
     this.initial = [];
     this.solution = [];
     this.notes = {};
-    this.history = []; // Pour Undo
+    this.history = [];
     this.selectedCellIndex = null;
     this.isNoteMode = false;
     this.players = [];
+    this.isPaused = false;
+    this.timerSeconds = 0;
+    this.timerInterval = null;
 
     this.gridEl = document.getElementById("grid-container");
+
+    // Clics souris
     this.gridEl.addEventListener("click", (e) => {
       const cell = e.target.closest(".cell");
       if (cell) this.selectCell(parseInt(cell.dataset.index));
     });
+
+    // Clavier (RÉPARÉ)
+    document.addEventListener("keydown", (e) => {
+      if (this.isPaused) return;
+
+      const key = e.key;
+      if (key >= "1" && key <= "9") {
+        this.handleInput(parseInt(key));
+      } else if (key === "Backspace" || key === "Delete") {
+        this.handleInput(0);
+      } else if (key.toLowerCase() === "n") {
+        this.toggleNoteMode();
+      } else if ((e.ctrlKey || e.metaKey) && key.toLowerCase() === "z") {
+        e.preventDefault();
+        this.undo();
+      } else if (key.startsWith("Arrow")) {
+        this.moveSelection(key);
+      }
+    });
+  }
+
+  moveSelection(key) {
+    if (this.selectedCellIndex === null) {
+      this.selectCell(0);
+      return;
+    }
+    let newIdx = this.selectedCellIndex;
+    if (key === "ArrowUp") newIdx -= 9;
+    if (key === "ArrowDown") newIdx += 9;
+    if (key === "ArrowLeft") newIdx -= 1;
+    if (key === "ArrowRight") newIdx += 1;
+
+    if (newIdx >= 0 && newIdx < 81) this.selectCell(newIdx);
   }
 
   initSolo() {
@@ -245,7 +305,9 @@ class Game {
     this.solution = [...data.solution];
     this.notes = {};
     this.history = [];
+    this.isPaused = false;
     this.renderGrid();
+    this.startTimer();
   }
 
   initMultiplayer(initialGrid, playersList) {
@@ -255,7 +317,54 @@ class Game {
     this.players = playersList;
     this.notes = {};
     this.history = [];
+    this.isPaused = false;
     this.renderGrid();
+    this.startTimer();
+  }
+
+  // --- TIMER LOGIC (RÉPARÉ) ---
+  startTimer() {
+    this.stopTimer();
+    this.timerSeconds = 0;
+    document.getElementById("timer").innerText = "00:00";
+    this.timerInterval = setInterval(() => {
+      if (!this.isPaused) {
+        this.timerSeconds++;
+        document.getElementById("timer").innerText = this.formatTime(
+          this.timerSeconds
+        );
+      }
+    }, 1000);
+  }
+
+  stopTimer() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+  }
+
+  togglePause() {
+    if (app.currentMode !== "solo") return; // Pas de pause en multi
+    this.isPaused = !this.isPaused;
+    const btn = document.getElementById("btn-pause");
+
+    if (this.isPaused) {
+      this.gridEl.style.opacity = "0";
+      btn.innerText = "REPRENDRE";
+      document.getElementById("timer").innerText = "PAUSE";
+    } else {
+      this.gridEl.style.opacity = "1";
+      btn.innerText = "PAUSE";
+      document.getElementById("timer").innerText = this.formatTime(
+        this.timerSeconds
+      );
+    }
+  }
+
+  formatTime(s) {
+    const m = Math.floor(s / 60)
+      .toString()
+      .padStart(2, "0");
+    const sec = (s % 60).toString().padStart(2, "0");
+    return `${m}:${sec}`;
   }
 
   resetBoard() {
@@ -266,7 +375,6 @@ class Game {
       this.notes = {};
       this.history = [];
       this.renderGrid();
-      // Reset progress bar in speedrun
       if (app.currentMode === "speedrun") this.checkProgress();
     }
   }
@@ -275,7 +383,7 @@ class Game {
     if (this.history.length === 0) return;
     const lastState = this.history.pop();
     this.board = [...lastState.board];
-    this.notes = JSON.parse(JSON.stringify(lastState.notes)); // Deep copy
+    this.notes = JSON.parse(JSON.stringify(lastState.notes));
     this.renderGrid();
   }
 
@@ -285,6 +393,7 @@ class Game {
       const cell = document.createElement("div");
       cell.className = "cell";
       cell.dataset.index = i;
+
       if (this.initial[i] !== 0) {
         cell.classList.add("initial");
         cell.textContent = this.initial[i];
@@ -296,6 +405,7 @@ class Game {
         }
       }
 
+      // Affichage des notes
       if (this.board[i] === 0 && this.notes[i] && this.notes[i].length > 0) {
         const noteGrid = document.createElement("div");
         noteGrid.className = "note-grid";
@@ -314,6 +424,7 @@ class Game {
   }
 
   selectCell(index) {
+    if (this.isPaused) return;
     this.selectedCellIndex = index;
     this.updateHighlights();
   }
@@ -331,7 +442,6 @@ class Game {
     );
     if (cell) cell.classList.add("selected");
 
-    // Highlight logic (Row, Col, Box, Same Num)
     const row = Math.floor(this.selectedCellIndex / 9);
     const col = this.selectedCellIndex % 9;
     const val = this.board[this.selectedCellIndex];
@@ -341,7 +451,7 @@ class Game {
       const r = Math.floor(idx / 9);
       const co = idx % 9;
 
-      if (r === row || co === col) c.classList.add("highlighted"); // Simplified highlight
+      if (r === row || co === col) c.classList.add("highlighted");
       if (val !== 0 && (this.board[idx] === val || this.initial[idx] === val))
         c.classList.add("same-number");
     });
@@ -356,10 +466,11 @@ class Game {
   }
 
   handleInput(num) {
+    if (this.isPaused) return;
     if (this.selectedCellIndex === null) return;
     if (this.initial[this.selectedCellIndex] !== 0) return;
 
-    // Save History for Undo (Local only)
+    // Save History for Undo
     this.history.push({
       board: [...this.board],
       notes: JSON.parse(JSON.stringify(this.notes)),
@@ -376,7 +487,7 @@ class Game {
         });
         if (app.currentMode === "speedrun") {
           this.board[this.selectedCellIndex] = num;
-          this.notes[this.selectedCellIndex] = []; // Clear notes
+          this.notes[this.selectedCellIndex] = [];
           this.renderGrid();
           this.checkProgress();
         }
@@ -384,8 +495,6 @@ class Game {
         this.toggleNoteNumber(num);
         this.renderGrid();
       } else if (num === 0) {
-        // Erase (Speedrun only? or handled by invalid move?)
-        // For simplicity allow local erase
         this.board[this.selectedCellIndex] = 0;
         this.renderGrid();
       }
@@ -418,11 +527,13 @@ class Game {
   updateTerritory(data) {
     this.board[data.index] = data.value;
     const cell = document.querySelector(`.cell[data-index='${data.index}']`);
-    cell.textContent = data.value;
-    cell.classList.remove("user-input");
-    cell.classList.add("owned", "animate-pop");
-    cell.style.backgroundColor = data.color;
-    cell.style.borderColor = data.color;
+    if (cell) {
+      cell.textContent = data.value;
+      cell.classList.remove("user-input");
+      cell.classList.add("owned", "animate-pop");
+      cell.style.backgroundColor = data.color;
+      cell.style.borderColor = data.color;
+    }
   }
 
   checkProgress() {

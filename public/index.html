@@ -15,7 +15,7 @@
     />
     <!-- Notre style personnalisé -->
     <link rel="stylesheet" href="style.css" />
-    <link rel="shortcut icon" href="favicon.png" type="image/png">
+    <link rel="shortcut icon" href="favicon.png" type="image/png" />
   </head>
   <body class="h-screen w-full text-slate-800 overflow-hidden">
     <!-- 1. MENU SCREEN -->
@@ -44,39 +44,46 @@
           >
             <i class="fas fa-user"></i> Mode Solo
           </button>
-          <div class="h-px bg-slate-200 my-2"></div>
+
+          <div class="h-px bg-slate-200 my-4"></div>
+
           <p
             class="text-sm text-slate-400 font-bold uppercase tracking-wider mb-2"
           >
-            Multijoueur
+            Créer une partie
           </p>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-3 mb-4">
             <button
               onclick="app.createRoom('speedrun')"
-              class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition"
+              class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition flex flex-col items-center justify-center"
             >
-              <i class="fas fa-flag-checkered"></i> Speedrun
+              <i class="fas fa-flag-checkered mb-1"></i> Speedrun
             </button>
             <button
               onclick="app.createRoom('territory')"
-              class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition"
+              class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition flex flex-col items-center justify-center"
             >
-              <i class="fas fa-map-marked-alt"></i> Territoire
+              <i class="fas fa-map-marked-alt mb-1"></i> Territoire
             </button>
           </div>
 
-          <div class="flex gap-2 mt-4">
+          <p
+            class="text-sm text-slate-400 font-bold uppercase tracking-wider mb-2"
+          >
+            Rejoindre une partie
+          </p>
+          <div class="flex gap-2">
             <input
               type="text"
               id="room-code-input"
-              placeholder="Code Salle"
-              class="flex-1 p-3 border-2 border-slate-200 rounded-lg outline-none text-center uppercase font-mono"
+              placeholder="CODE"
+              class="flex-1 p-3 border-2 border-slate-200 rounded-lg outline-none text-center uppercase font-mono font-bold"
             />
             <button
-              onclick="app.joinRoom()"
+              onclick="app.joinRoomFromInput()"
               class="bg-slate-800 text-white px-6 rounded-lg font-bold hover:bg-slate-700"
             >
-              Rejoindre
+              Go
             </button>
           </div>
         </div>
@@ -92,19 +99,28 @@
         class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center"
       >
         <h2 class="text-2xl font-bold mb-2">Salle d'attente</h2>
-        <div class="bg-slate-100 p-4 rounded-lg mb-6">
+        <div
+          class="bg-slate-100 p-4 rounded-lg mb-6 relative group cursor-pointer"
+          onclick="navigator.clipboard.writeText(document.getElementById('display-room-code').innerText); alert('Code copié !')"
+        >
           <p class="text-sm text-slate-500 uppercase">Code de la partie</p>
           <p
             id="display-room-code"
-            class="text-4xl font-mono font-bold tracking-widest text-green-600"
+            class="text-4xl font-mono font-bold tracking-widest text-green-600 select-all"
           >
             ----
           </p>
+          <span class="text-xs text-slate-400 absolute bottom-1 right-2"
+            >Cliquer pour copier</span
+          >
         </div>
 
         <div class="text-left mb-6">
           <p class="font-bold text-slate-700 mb-2">Joueurs :</p>
-          <ul id="lobby-player-list" class="space-y-2"></ul>
+          <ul
+            id="lobby-player-list"
+            class="space-y-2 max-h-40 overflow-y-auto"
+          ></ul>
         </div>
 
         <div id="host-controls" class="hidden">
@@ -143,14 +159,27 @@
       >
         <div>
           <h1 class="text-2xl font-bold text-slate-800">
-            Sudoku<span class="text-green-600">.</span>
+            Sudoku<span class="text-green-600">.</span>Zen
           </h1>
           <p class="text-xs text-slate-600 font-bold" id="mode-display">
             Mode Solo
           </p>
         </div>
-        <div class="text-xl font-mono font-semibold text-slate-700" id="timer">
-          00:00
+        <div class="flex flex-col items-end">
+          <div
+            class="text-xl font-mono font-semibold text-slate-700"
+            id="timer"
+          >
+            00:00
+          </div>
+          <!-- BOUTON PAUSE (Solo uniquement) -->
+          <button
+            id="btn-pause"
+            onclick="game.togglePause()"
+            class="text-xs text-green-600 font-bold hover:underline hidden"
+          >
+            PAUSE
+          </button>
         </div>
       </div>
 
@@ -158,35 +187,32 @@
       <div class="w-full max-w-md px-2">
         <div
           id="grid-container"
-          class="sudoku-grid bg-white rounded-lg overflow-hidden mb-6"
+          class="sudoku-grid bg-white rounded-lg overflow-hidden mb-6 transition-opacity duration-300"
         ></div>
 
-        <!-- Controls (Barre d'outils complétée) -->
+        <!-- Controls -->
         <div class="flex justify-between items-center mb-4 px-2">
-          <!-- UNDO -->
           <button
             onclick="game.undo()"
             class="flex flex-col items-center text-white hover:text-green-100"
-            title="Annuler"
+            title="Annuler (Ctrl+Z)"
           >
             <i class="fas fa-undo text-2xl drop-shadow-md"></i>
           </button>
 
-          <!-- ERASE -->
           <button
             onclick="game.handleInput(0)"
             class="flex flex-col items-center text-white hover:text-green-100"
-            title="Gomme"
+            title="Gomme (Del)"
           >
             <i class="fas fa-eraser text-2xl drop-shadow-md"></i>
           </button>
 
-          <!-- NOTE -->
           <button
             id="btn-note"
             onclick="game.toggleNoteMode()"
             class="flex flex-col items-center text-white hover:text-green-100 relative"
-            title="Mode Crayon"
+            title="Mode Crayon (N)"
           >
             <div
               id="note-indicator"
@@ -196,7 +222,6 @@
             </div>
           </button>
 
-          <!-- RESET -->
           <button
             onclick="game.resetBoard()"
             class="flex flex-col items-center text-white hover:text-green-100"
@@ -205,7 +230,6 @@
             <i class="fas fa-redo text-2xl drop-shadow-md"></i>
           </button>
 
-          <!-- QUIT -->
           <button
             onclick="app.quitGame()"
             class="flex flex-col items-center text-white hover:text-red-200"
