@@ -4,16 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sudoku Zen Multiplayer</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Socket.io Client -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <!-- FontAwesome Icons -->
     <link
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
       rel="stylesheet"
     />
-    <!-- Notre style personnalisé -->
     <link rel="stylesheet" href="style.css" />
     <link rel="shortcut icon" href="favicon.png" type="image/png" />
   </head>
@@ -38,8 +34,9 @@
         />
 
         <div class="space-y-3">
+          <!-- Bouton Solo vers écran difficulté -->
           <button
-            onclick="app.startSolo()"
+            onclick="app.showSoloDifficulty()"
             class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
           >
             <i class="fas fa-user"></i> Mode Solo
@@ -90,6 +87,44 @@
       </div>
     </div>
 
+    <!-- 1.5 SOLO DIFFICULTY SCREEN (Nouveau) -->
+    <div
+      id="screen-difficulty"
+      class="screen h-full w-full flex-col items-center justify-center bg-black/40 backdrop-blur-sm"
+    >
+      <div
+        class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center"
+      >
+        <h2 class="text-2xl font-bold mb-6">Difficulté Solo</h2>
+        <div class="space-y-3 mb-6">
+          <button
+            onclick="app.startSolo('easy')"
+            class="w-full bg-green-100 hover:bg-green-200 text-green-800 font-bold py-3 rounded-xl transition"
+          >
+            Facile
+          </button>
+          <button
+            onclick="app.startSolo('medium')"
+            class="w-full bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-3 rounded-xl transition"
+          >
+            Moyen
+          </button>
+          <button
+            onclick="app.startSolo('hard')"
+            class="w-full bg-red-100 hover:bg-red-200 text-red-800 font-bold py-3 rounded-xl transition"
+          >
+            Difficile
+          </button>
+        </div>
+        <button
+          onclick="app.showScreen('screen-menu')"
+          class="text-slate-400 underline text-sm"
+        >
+          Retour
+        </button>
+      </div>
+    </div>
+
     <!-- 2. LOBBY SCREEN -->
     <div
       id="screen-lobby"
@@ -100,7 +135,6 @@
       >
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-2xl font-bold">Salle d'attente</h2>
-          <!-- NOUVEAU BOUTON QUITTER -->
           <button
             onclick="app.leaveLobby()"
             class="text-red-400 hover:text-red-600 transition"
@@ -110,6 +144,7 @@
           </button>
         </div>
 
+        <!-- Code -->
         <div
           class="bg-slate-100 p-4 rounded-lg mb-6 relative group cursor-pointer"
           onclick="navigator.clipboard.writeText(document.getElementById('display-room-code').innerText); alert('Code copié !')"
@@ -121,9 +156,49 @@
           >
             ----
           </p>
-          <span class="text-xs text-slate-400 absolute bottom-1 right-2"
-            >Cliquer pour copier</span
+        </div>
+
+        <!-- Sélecteur Difficulté (Multi) -->
+        <div class="mb-6 p-3 border border-slate-100 rounded-lg">
+          <p class="text-xs text-slate-400 font-bold uppercase mb-2">
+            Difficulté
+          </p>
+
+          <!-- Contrôles Hôte -->
+          <div
+            id="host-difficulty-controls"
+            class="hidden flex justify-center gap-2"
           >
+            <button
+              onclick="app.setLobbyDifficulty('easy')"
+              class="diff-btn px-3 py-1 rounded bg-slate-100 hover:bg-green-100 text-sm font-bold"
+              data-diff="easy"
+            >
+              Facile
+            </button>
+            <button
+              onclick="app.setLobbyDifficulty('medium')"
+              class="diff-btn px-3 py-1 rounded bg-slate-100 hover:bg-yellow-100 text-sm font-bold"
+              data-diff="medium"
+            >
+              Moyen
+            </button>
+            <button
+              onclick="app.setLobbyDifficulty('hard')"
+              class="diff-btn px-3 py-1 rounded bg-slate-100 hover:bg-red-100 text-sm font-bold"
+              data-diff="hard"
+            >
+              Difficile
+            </button>
+          </div>
+
+          <!-- Affichage Invité -->
+          <div
+            id="guest-difficulty-display"
+            class="hidden text-slate-700 font-bold"
+          >
+            Moyen
+          </div>
         </div>
 
         <div class="text-left mb-6">
@@ -183,7 +258,6 @@
           >
             00:00
           </div>
-          <!-- BOUTON PAUSE (Solo uniquement) -->
           <button
             id="btn-pause"
             onclick="game.togglePause()"
@@ -310,7 +384,6 @@
       </div>
     </div>
 
-    <!-- Notre logique de jeu -->
     <script src="main.js"></script>
   </body>
 </html>
