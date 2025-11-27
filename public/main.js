@@ -18,12 +18,14 @@ const app = {
       .querySelectorAll(".screen")
       .forEach((s) => s.classList.remove("active"));
     document.getElementById(id).classList.add("active");
+    // Masquer le modal de victoire au changement d'écran par sécurité
+    const modal = document.getElementById("solo-win-modal");
+    if (modal) modal.classList.add("hidden");
   },
 
   showRules: () => {
     app.showScreen("screen-rules");
   },
-
   showSoloDifficulty: () => {
     app.showScreen("screen-difficulty");
   },
@@ -192,12 +194,9 @@ socket.on("territory_update", (data) => {
   updateHudScores(data.scores);
 });
 
-// NOUVEAU : Gère la pénalité (mise à jour scores + shake)
 socket.on("territory_penalty", (data) => {
   game.lastScores = data.scores;
   updateHudScores(data.scores);
-
-  // Si c'est moi qui ai fait l'erreur, ou un autre, on voit l'effet de tremblement
   game.shakeCell(data.index);
 });
 
@@ -604,6 +603,7 @@ class Game {
       this.board[this.selectedCellIndex] = num;
       this.notes[this.selectedCellIndex] = [];
       if (num === 0) this.board[this.selectedCellIndex] = 0;
+      this.checkSoloWin(); // NOUVEAU
     }
     this.renderGrid();
   }
@@ -648,6 +648,26 @@ class Game {
       roomCode: app.roomCode,
       progress: percent,
     });
+  }
+
+  // NOUVEAU : Vérification victoire solo
+  checkSoloWin() {
+    let isFull = true;
+    let isCorrect = true;
+    for (let i = 0; i < 81; i++) {
+      if (this.board[i] === 0) {
+        isFull = false;
+        break;
+      }
+      if (this.board[i] !== this.solution[i]) isCorrect = false;
+    }
+    if (isFull && isCorrect) {
+      this.stopTimer();
+      // Afficher le modal victoire (HTML doit avoir cet ID)
+      const modal = document.getElementById("solo-win-modal");
+      if (modal) modal.classList.remove("hidden");
+      else alert("Gagné !");
+    }
   }
 }
 

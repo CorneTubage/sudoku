@@ -131,18 +131,20 @@ io.on("connection", (socket) => {
     room.players.push(player);
     socket.join(roomCode);
 
-    io.to(roomCode).emit("update_lobby", {
-      players: room.players,
-      mode: room.mode,
-      difficulty: room.difficulty,
-      hostId: room.host,
-    });
-
+    // CORRECTION : On envoie d'abord l'ID au joueur pour qu'il sache qui il est
     socket.emit("joined_success", {
       roomCode,
       playerId: socket.id,
       mode: room.mode,
       color: playerColor,
+    });
+
+    // ENSUITE on met à jour le lobby (le client pourra maintenant comparer son ID avec hostId)
+    io.to(roomCode).emit("update_lobby", {
+      players: room.players,
+      mode: room.mode,
+      difficulty: room.difficulty,
+      hostId: room.host,
     });
   });
 
@@ -233,7 +235,6 @@ io.on("connection", (socket) => {
       // Logique client side
     } else if (room.mode === "territory") {
       if (isCorrect && room.territoryMap[index] === null) {
-        // Bonne réponse
         room.territoryMap[index] = socket.id;
         player.score += 10;
         io.to(roomCode).emit("territory_update", {
@@ -244,7 +245,6 @@ io.on("connection", (socket) => {
           scores: room.players.map((p) => ({ id: p.id, score: p.score })),
         });
 
-        // Check Win
         const filled = room.territoryMap.filter((x) => x !== null).length;
         const totalZeros = room.gameData.initial.filter((x) => x === 0).length;
         if (filled >= totalZeros) {
@@ -254,11 +254,9 @@ io.on("connection", (socket) => {
           io.to(roomCode).emit("game_over", { winner: winner.username });
         }
       } else if (!isCorrect) {
-        // Mauvaise réponse : Pénalité
         player.score -= 5;
-        // On notifie tout le monde du nouveau score + on dit à ce joueur de secouer la case
         io.to(roomCode).emit("territory_penalty", {
-          targetId: socket.id, // Celui qui tremble
+          targetId: socket.id,
           index: index,
           scores: room.players.map((p) => ({ id: p.id, score: p.score })),
         });

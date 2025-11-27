@@ -89,7 +89,6 @@
         </div>
       </div>
 
-      <!-- Footer Links -->
       <div class="absolute bottom-4 text-xs text-white/70">
         <a href="legal.html" class="no-underline hover:text-white hover:underline"
           >Mentions Légales</a
@@ -152,8 +151,6 @@
             <i class="fas fa-times text-2xl"></i>
           </button>
         </div>
-
-        <!-- Navigation Ancres -->
         <div class="flex gap-4 mb-6 border-b pb-4">
           <a
             href="#solo"
@@ -171,7 +168,6 @@
             >Territoire</a
           >
         </div>
-
         <div class="space-y-8 text-left text-slate-700">
           <section id="solo">
             <h3 class="text-xl font-bold mb-2 flex items-center gap-2">
@@ -271,8 +267,6 @@
             <i class="fas fa-times-circle text-2xl"></i>
           </button>
         </div>
-
-        <!-- Code -->
         <div
           class="bg-slate-100 p-4 rounded-lg mb-6 relative group cursor-pointer"
           onclick="navigator.clipboard.writeText(document.getElementById('display-room-code').innerText); alert('Code copié !')"
@@ -285,13 +279,10 @@
             ----
           </p>
         </div>
-
-        <!-- Sélecteur Difficulté (Multi) -->
         <div class="mb-6 p-3 border border-slate-100 rounded-lg">
           <p class="text-xs text-slate-400 font-bold uppercase mb-2">
             Difficulté
           </p>
-
           <div
             id="host-difficulty-controls"
             class="hidden flex justify-center gap-2"
@@ -318,7 +309,6 @@
               Difficile
             </button>
           </div>
-
           <div
             id="guest-difficulty-display"
             class="hidden text-slate-700 font-bold"
@@ -326,7 +316,6 @@
             Moyen
           </div>
         </div>
-
         <div class="text-left mb-6">
           <p class="font-bold text-slate-700 mb-2">Joueurs :</p>
           <ul
@@ -334,7 +323,6 @@
             class="space-y-2 max-h-40 overflow-y-auto"
           ></ul>
         </div>
-
         <div id="host-controls" class="hidden">
           <button
             onclick="app.socketStartGame()"
@@ -363,7 +351,6 @@
         </h3>
         <div id="players-hud" class="space-y-2 text-sm font-bold"></div>
       </div>
-
       <div
         class="w-full max-w-md px-4 flex justify-between items-center mb-4 bg-white/80 p-3 rounded-xl backdrop-blur-sm shadow-sm mt-16 sm:mt-0"
       >
@@ -391,13 +378,11 @@
           </button>
         </div>
       </div>
-
       <div class="w-full max-w-md px-2">
         <div
           id="grid-container"
           class="sudoku-grid bg-white rounded-lg overflow-hidden mb-6 transition-opacity duration-300"
         ></div>
-
         <div class="flex justify-between items-center mb-4 px-2">
           <button
             onclick="game.undo()"
@@ -441,7 +426,6 @@
             <i class="fas fa-sign-out-alt text-2xl drop-shadow-md"></i>
           </button>
         </div>
-
         <div class="grid grid-cols-9 gap-1 px-1">
           <button
             class="numpad-btn h-12 rounded bg-green-600 text-white font-bold text-xl shadow-lg active:scale-95 transition border-b-4 border-green-800 active:border-b-0 active:mt-1"
@@ -496,6 +480,34 @@
             onclick="game.handleInput(9)"
           >
             9
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOUVEAU: SOLO WIN MODAL -->
+    <div
+      id="solo-win-modal"
+      class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+    >
+      <div
+        class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm animate-pop"
+      >
+        <div class="text-6xl mb-4">🏆</div>
+        <h2 class="text-3xl font-bold text-slate-800 mb-2">Bravo !</h2>
+        <p class="text-slate-600 mb-6">Grille complétée avec succès.</p>
+        <div class="flex gap-2 justify-center">
+          <button
+            onclick="app.showScreen('screen-menu'); document.getElementById('solo-win-modal').classList.add('hidden')"
+            class="bg-slate-200 text-slate-700 px-6 py-2 rounded-lg font-bold"
+          >
+            Menu
+          </button>
+          <button
+            onclick="game.resetBoard(); document.getElementById('solo-win-modal').classList.add('hidden')"
+            class="bg-green-500 text-white px-6 py-2 rounded-lg font-bold"
+          >
+            Rejouer
           </button>
         </div>
       </div>
