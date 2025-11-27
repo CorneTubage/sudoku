@@ -98,7 +98,18 @@
       <div
         class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center"
       >
-        <h2 class="text-2xl font-bold mb-2">Salle d'attente</h2>
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-2xl font-bold">Salle d'attente</h2>
+          <!-- NOUVEAU BOUTON QUITTER -->
+          <button
+            onclick="app.leaveLobby()"
+            class="text-red-400 hover:text-red-600 transition"
+            title="Quitter le salon"
+          >
+            <i class="fas fa-times-circle text-2xl"></i>
+          </button>
+        </div>
+
         <div
           class="bg-slate-100 p-4 rounded-lg mb-6 relative group cursor-pointer"
           onclick="navigator.clipboard.writeText(document.getElementById('display-room-code').innerText); alert('Code copié !')"

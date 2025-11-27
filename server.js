@@ -9,20 +9,15 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-// Servir les fichiers statiques (le site web)
 app.use(express.static(path.join(__dirname, "public")));
 
-// --- LOGIQUE SUDOKU (Côté Serveur pour l'équité) ---
+// --- LOGIQUE SUDOKU ---
 class SudokuGenerator {
   constructor() {}
-
   generate(difficulty) {
-    // Génération simplifiée pour le serveur
     let grid = new Array(81).fill(0);
     this.fillGrid(grid);
     const solution = [...grid];
-
-    // Retirer des cases
     let attempts =
       difficulty === "hard" ? 55 : difficulty === "medium" ? 45 : 30;
     while (attempts > 0) {
@@ -34,9 +29,7 @@ class SudokuGenerator {
     }
     return { initial: grid, solution: solution };
   }
-
   fillGrid(grid) {
-    // Backtracking simple
     for (let i = 0; i < 81; i++) {
       if (grid[i] === 0) {
         let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
@@ -52,13 +45,11 @@ class SudokuGenerator {
     }
     return true;
   }
-
   isValid(grid, index, num) {
     const row = Math.floor(index / 9);
     const col = index % 9;
     const boxRow = row - (row % 3);
     const boxCol = col - (col % 3);
-
     for (let i = 0; i < 9; i++) {
       if (grid[row * 9 + i] === num) return false;
       if (grid[i * 9 + col] === num) return false;
@@ -72,30 +63,29 @@ class SudokuGenerator {
 const sudokuGen = new SudokuGenerator();
 
 // --- GESTION DES SALLES ---
-const rooms = {}; // { roomCode: { players: [], state: 'lobby', mode: 'speedrun', grid: {}, scores: {} } }
+const rooms = {};
 
 function generateRoomCode() {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
 io.on("connection", (socket) => {
-  console.log("Un joueur connecté:", socket.id);
+  console.log("Connecté:", socket.id);
 
-  // Créer une salle
   socket.on("create_room", ({ username, mode }) => {
     const roomCode = generateRoomCode();
     rooms[roomCode] = {
       code: roomCode,
       host: socket.id,
-      state: "lobby", // lobby, playing, finished
-      mode: mode, // 'speedrun', 'territory'
+      state: "lobby",
+      mode: mode,
       players: [],
       gameData: null,
+      territoryMap: [],
     };
     socket.emit("room_created", roomCode);
   });
 
-  // Rejoindre une salle
   socket.on("join_room", ({ roomCode, username }) => {
     const room = rooms[roomCode];
     if (!room) {
@@ -107,7 +97,6 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Couleurs pour le mode Territoire
     const colors = [
       "#86efac",
       "#fca5a5",
@@ -121,22 +110,20 @@ io.on("connection", (socket) => {
     const player = {
       id: socket.id,
       username,
-      score: 0, // Pour territoire
-      progress: 0, // Pour speedrun
+      score: 0,
+      progress: 0,
       color: playerColor,
     };
-
     room.players.push(player);
     socket.join(roomCode);
 
-    // Informer tout le monde dans la salle
+    // FIX: On envoie l'ID de l'hôte (hostId) au lieu de dire à chacun s'il est l'hôte
     io.to(roomCode).emit("update_lobby", {
       players: room.players,
       mode: room.mode,
-      isHost: socket.id === room.host,
+      hostId: room.host,
     });
 
-    // Dire au joueur actuel qu'il a rejoint
     socket.emit("joined_success", {
       roomCode,
       playerId: socket.id,
@@ -144,28 +131,60 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Lancer la partie
+  // NOUVEAU : Quitter le lobby
+  socket.on("leave_room", (roomCode) => {
+    leaveRoomLogic(socket, roomCode);
+  });
+
+  socket.on("disconnect", () => {
+    // Trouver dans quelle salle était le joueur
+    for (const code in rooms) {
+      const room = rooms[code];
+      if (room.players.find((p) => p.id === socket.id)) {
+        leaveRoomLogic(socket, code);
+        break;
+      }
+    }
+  });
+
+  function leaveRoomLogic(socket, roomCode) {
+    const room = rooms[roomCode];
+    if (!room) return;
+
+    // Retirer le joueur
+    room.players = room.players.filter((p) => p.id !== socket.id);
+    socket.leave(roomCode);
+
+    if (room.players.length === 0) {
+      // Supprimer la salle si vide
+      delete rooms[roomCode];
+    } else {
+      // Si l'hôte est parti, le joueur suivant devient l'hôte
+      if (room.host === socket.id) {
+        room.host = room.players[0].id;
+      }
+      // Mettre à jour les survivants
+      io.to(roomCode).emit("update_lobby", {
+        players: room.players,
+        mode: room.mode,
+        hostId: room.host,
+      });
+    }
+  }
+
   socket.on("start_game", (roomCode) => {
     const room = rooms[roomCode];
     if (!room || room.host !== socket.id) return;
 
-    // Générer la grille unique pour tout le monde
-    const difficulty = "medium"; // On pourrait le rendre dynamique
-    room.gameData = sudokuGen.generate(difficulty);
+    room.gameData = sudokuGen.generate("medium");
     room.state = "playing";
-
-    // Initialiser les territoires (vide)
-    if (room.mode === "territory") {
-      room.territoryMap = new Array(81).fill(null); // stocke l'ID du joueur propriétaire
-    }
+    if (room.mode === "territory") room.territoryMap = new Array(81).fill(null);
 
     io.to(roomCode).emit("game_started", {
       initial: room.gameData.initial,
       players: room.players,
     });
   });
-
-  // --- LOGIQUE JEU ---
 
   socket.on("submit_move", ({ roomCode, index, value }) => {
     const room = rooms[roomCode];
@@ -178,18 +197,11 @@ io.on("connection", (socket) => {
     if (!player) return;
 
     if (room.mode === "speedrun") {
-      if (isCorrect) {
-        // Vérifier si la grille est finie pour ce joueur (logique simplifiée via %)
-        // Dans une vraie app, on traquerait la grille complète de chaque joueur côté serveur
-        // Ici on fait confiance au client pour le calcul du % pour simplifier l'exemple
-      }
+      // Logique client-side pour speedrun dans cet exemple simplifié
     } else if (room.mode === "territory") {
-      // Logique Territoire : Premier arrivé, premier servi sur une case juste
       if (isCorrect && room.territoryMap[index] === null) {
         room.territoryMap[index] = socket.id;
         player.score += 10;
-
-        // Diffuser la prise de territoire
         io.to(roomCode).emit("territory_update", {
           index,
           value,
@@ -198,15 +210,16 @@ io.on("connection", (socket) => {
           scores: room.players.map((p) => ({ id: p.id, score: p.score })),
         });
 
-        // Vérifier fin de partie (toutes cases remplies)
-        const totalOwned = room.territoryMap.filter((x) => x !== null).length;
-        const totalToFill = room.gameData.initial.filter((x) => x === 0).length; // Approximatif, compte les 0 initiaux
-
-        // Simplification : si plus de mouvements possibles ou grille pleine
-        // Pour cet exemple, on ne check pas la fin stricte ici pour garder le code concis
-      } else if (!isCorrect) {
-        // Pénalité optionnelle
-        socket.emit("wrong_move", index);
+        // Fin de partie territoire (simplifié)
+        const filled = room.territoryMap.filter((x) => x !== null).length;
+        const totalZeros = room.gameData.initial.filter((x) => x === 0).length;
+        if (filled >= totalZeros) {
+          // Trouver le gagnant
+          const winner = room.players.reduce((prev, current) =>
+            prev.score > current.score ? prev : current
+          );
+          io.to(roomCode).emit("game_over", { winner: winner.username });
+        }
       }
     }
   });
@@ -224,6 +237,7 @@ io.on("connection", (socket) => {
           id: p.id,
           username: p.username,
           progress: p.progress,
+          color: p.color,
         }))
       );
 
@@ -232,11 +246,6 @@ io.on("connection", (socket) => {
         room.state = "finished";
       }
     }
-  });
-
-  socket.on("disconnect", () => {
-    // Gérer la déconnexion (supprimer des rooms, etc.)
-    // Simplifié ici
   });
 });
 

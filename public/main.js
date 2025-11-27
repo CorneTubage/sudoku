@@ -26,29 +26,35 @@ const app = {
     app.showScreen("screen-game");
     document.getElementById("multi-hud").classList.add("hidden");
     document.getElementById("mode-display").innerText = "Mode Solo";
-    document.getElementById("btn-pause").classList.remove("hidden"); // Afficher Pause
+    document.getElementById("btn-pause").classList.remove("hidden");
     game.initSolo();
   },
 
-  // 1. Demande de création : on ne demande PAS de code ici
   createRoom: (mode) => {
     const name = document.getElementById("username").value || "Joueur";
     app.username = name;
     socket.emit("create_room", { username: name, mode: mode });
   },
 
-  // 2. Rejoindre via le bouton "Go" (Input manuel)
   joinRoomFromInput: () => {
     const code = document.getElementById("room-code-input").value.toUpperCase();
     if (!code) return alert("Entrez un code !");
     app.joinRoom(code);
   },
 
-  // 3. Logique interne pour rejoindre
   joinRoom: (code) => {
     const name = document.getElementById("username").value || "Joueur";
     app.username = name;
     socket.emit("join_room", { roomCode: code, username: name });
+  },
+
+  // NOUVEAU : Quitter le lobby
+  leaveLobby: () => {
+    if (app.roomCode) {
+      socket.emit("leave_room", app.roomCode);
+      app.roomCode = null;
+      app.showScreen("screen-menu");
+    }
   },
 
   socketStartGame: () => {
@@ -57,6 +63,10 @@ const app = {
 
   quitGame: () => {
     if (confirm("Quitter la partie ?")) {
+      // Si on est en multi, on notifie le serveur
+      if (app.roomCode) {
+        socket.emit("leave_room", app.roomCode);
+      }
       location.reload();
     }
   },
@@ -64,10 +74,8 @@ const app = {
 
 // --- SOCKET EVENTS ---
 
-// Réponse du serveur après "createRoom" : on reçoit le code généré
 socket.on("room_created", (code) => {
   app.roomCode = code;
-  // On rejoint automatiquement avec ce code
   app.joinRoom(code);
 });
 
@@ -84,12 +92,28 @@ socket.on("update_lobby", (data) => {
   list.innerHTML = "";
   data.players.forEach((p) => {
     const li = document.createElement("li");
-    li.className = "flex items-center gap-2 bg-slate-50 p-2 rounded";
-    li.innerHTML = `<div class="w-3 h-3 rounded-full" style="background:${p.color}"></div> ${p.username}`;
+    li.className =
+      "flex items-center gap-2 bg-slate-50 p-2 rounded justify-between";
+    li.innerHTML = `
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full" style="background:${
+                  p.color
+                }"></div> 
+                <span class="font-bold text-slate-700">${p.username}</span>
+            </div>
+            ${
+              data.hostId === p.id
+                ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-bold">HÔTE</span>'
+                : ""
+            }
+        `;
     list.appendChild(li);
   });
 
-  if (data.isHost) {
+  // FIX: On compare notre ID avec l'ID de l'hôte envoyé par le serveur
+  const iAmHost = app.myId === data.hostId;
+
+  if (iAmHost) {
     document.getElementById("host-controls").classList.remove("hidden");
     document.getElementById("guest-waiting").classList.add("hidden");
   } else {
@@ -101,7 +125,7 @@ socket.on("update_lobby", (data) => {
 socket.on("game_started", (data) => {
   app.showScreen("screen-game");
   document.getElementById("multi-hud").classList.remove("hidden");
-  document.getElementById("btn-pause").classList.add("hidden"); // Pas de pause en multi
+  document.getElementById("btn-pause").classList.add("hidden");
 
   let modeName =
     app.currentMode === "speedrun" ? "Course" : "Guerre de Territoire";
@@ -258,16 +282,13 @@ class Game {
 
     this.gridEl = document.getElementById("grid-container");
 
-    // Clics souris
     this.gridEl.addEventListener("click", (e) => {
       const cell = e.target.closest(".cell");
       if (cell) this.selectCell(parseInt(cell.dataset.index));
     });
 
-    // Clavier (RÉPARÉ)
     document.addEventListener("keydown", (e) => {
       if (this.isPaused) return;
-
       const key = e.key;
       if (key >= "1" && key <= "9") {
         this.handleInput(parseInt(key));
@@ -322,7 +343,6 @@ class Game {
     this.startTimer();
   }
 
-  // --- TIMER LOGIC (RÉPARÉ) ---
   startTimer() {
     this.stopTimer();
     this.timerSeconds = 0;
@@ -342,10 +362,9 @@ class Game {
   }
 
   togglePause() {
-    if (app.currentMode !== "solo") return; // Pas de pause en multi
+    if (app.currentMode !== "solo") return;
     this.isPaused = !this.isPaused;
     const btn = document.getElementById("btn-pause");
-
     if (this.isPaused) {
       this.gridEl.style.opacity = "0";
       btn.innerText = "REPRENDRE";
@@ -405,7 +424,6 @@ class Game {
         }
       }
 
-      // Affichage des notes
       if (this.board[i] === 0 && this.notes[i] && this.notes[i].length > 0) {
         const noteGrid = document.createElement("div");
         noteGrid.className = "note-grid";
@@ -417,7 +435,6 @@ class Game {
         }
         cell.appendChild(noteGrid);
       }
-
       this.gridEl.appendChild(cell);
     }
     this.updateHighlights();
@@ -470,14 +487,12 @@ class Game {
     if (this.selectedCellIndex === null) return;
     if (this.initial[this.selectedCellIndex] !== 0) return;
 
-    // Save History for Undo
     this.history.push({
       board: [...this.board],
       notes: JSON.parse(JSON.stringify(this.notes)),
     });
     if (this.history.length > 20) this.history.shift();
 
-    // Logique Multi
     if (app.currentMode !== "solo") {
       if (num !== 0 && !this.isNoteMode) {
         socket.emit("submit_move", {
@@ -501,7 +516,6 @@ class Game {
       return;
     }
 
-    // Logique Solo
     if (this.isNoteMode) {
       this.toggleNoteNumber(num);
     } else {
