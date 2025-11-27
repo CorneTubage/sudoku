@@ -17,10 +17,10 @@
     <!-- 1. MENU SCREEN -->
     <div
       id="screen-menu"
-      class="screen active h-full w-full flex-col items-center justify-center bg-black/40 backdrop-blur-sm"
+      class="screen active h-full w-full flex-col items-center justify-center bg-black/40 backdrop-blur-sm relative"
     >
       <div
-        class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center"
+        class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center max-h-[90vh] overflow-y-auto"
       >
         <h1 class="text-4xl font-bold mb-6 text-slate-800">
           Sudoku<span class="text-green-600">.</span>Zen
@@ -30,11 +30,10 @@
           type="text"
           id="username"
           placeholder="Votre Pseudo"
-          class="w-full p-3 mb-6 border-2 border-slate-200 rounded-lg focus:border-green-500 outline-none text-center font-bold text-lg"
+          class="w-full p-3 mb-4 border-2 border-slate-200 rounded-lg focus:border-green-500 outline-none text-center font-bold text-lg"
         />
 
         <div class="space-y-3">
-          <!-- Bouton Solo vers écran difficulté -->
           <button
             onclick="app.showSoloDifficulty()"
             class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
@@ -47,9 +46,9 @@
           <p
             class="text-sm text-slate-400 font-bold uppercase tracking-wider mb-2"
           >
-            Créer une partie
+            Multijoueur
           </p>
-          <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="grid grid-cols-2 gap-3 mb-2">
             <button
               onclick="app.createRoom('speedrun')"
               class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition flex flex-col items-center justify-center"
@@ -64,16 +63,11 @@
             </button>
           </div>
 
-          <p
-            class="text-sm text-slate-400 font-bold uppercase tracking-wider mb-2"
-          >
-            Rejoindre une partie
-          </p>
           <div class="flex gap-2">
             <input
               type="text"
               id="room-code-input"
-              placeholder="CODE"
+              placeholder="CODE SALLE"
               class="flex-1 p-3 border-2 border-slate-200 rounded-lg outline-none text-center uppercase font-mono font-bold"
             />
             <button
@@ -83,11 +77,27 @@
               Go
             </button>
           </div>
+
+          <div class="h-px bg-slate-200 my-4"></div>
+
+          <button
+            onclick="app.showRules()"
+            class="text-slate-500 hover:text-green-600 font-bold text-sm underline"
+          >
+            <i class="fas fa-book-open mr-1"></i> Règles du jeu
+          </button>
         </div>
+      </div>
+
+      <!-- Footer Links -->
+      <div class="absolute bottom-4 text-xs text-white/70">
+        <a href="legal.html" target="_blank" class="hover:text-white underline"
+          >Mentions Légales</a
+        >
       </div>
     </div>
 
-    <!-- 1.5 SOLO DIFFICULTY SCREEN (Nouveau) -->
+    <!-- 1.5 SOLO DIFFICULTY SCREEN -->
     <div
       id="screen-difficulty"
       class="screen h-full w-full flex-col items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -122,6 +132,124 @@
         >
           Retour
         </button>
+      </div>
+    </div>
+
+    <!-- 1.8 RULES SCREEN -->
+    <div
+      id="screen-rules"
+      class="screen h-full w-full flex-col items-center justify-center bg-black/40 backdrop-blur-sm"
+    >
+      <div
+        class="bg-white p-8 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+      >
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-3xl font-bold text-slate-800">Règles du jeu</h2>
+          <button
+            onclick="app.showScreen('screen-menu')"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <i class="fas fa-times text-2xl"></i>
+          </button>
+        </div>
+
+        <!-- Navigation Ancres -->
+        <div class="flex gap-4 mb-6 border-b pb-4">
+          <a
+            href="#solo"
+            class="px-4 py-2 bg-slate-100 rounded-lg hover:bg-slate-200 font-bold text-slate-700"
+            >Solo</a
+          >
+          <a
+            href="#speedrun"
+            class="px-4 py-2 bg-green-100 rounded-lg hover:bg-green-200 font-bold text-green-800"
+            >Speedrun</a
+          >
+          <a
+            href="#territory"
+            class="px-4 py-2 bg-blue-100 rounded-lg hover:bg-blue-200 font-bold text-blue-800"
+            >Territoire</a
+          >
+        </div>
+
+        <div class="space-y-8 text-left text-slate-700">
+          <section id="solo">
+            <h3 class="text-xl font-bold mb-2 flex items-center gap-2">
+              <i class="fas fa-user"></i> Mode Solo
+            </h3>
+            <p class="mb-2">
+              Le but est de remplir la grille de 9x9 avec des chiffres de 1 à 9
+              de sorte que chaque colonne, chaque ligne et chaque sous-grille de
+              3x3 contiennent tous les chiffres une seule fois.
+            </p>
+            <ul class="list-disc pl-5 text-sm space-y-1">
+              <li>Choisissez votre difficulté avant de commencer.</li>
+              <li>
+                Utilisez le <strong>mode Notes (N)</strong> pour inscrire des
+                hypothèses.
+              </li>
+              <li>Si vous faites une erreur, la case s'affiche en rouge.</li>
+            </ul>
+          </section>
+
+          <section id="speedrun">
+            <h3
+              class="text-xl font-bold mb-2 flex items-center gap-2 text-green-700"
+            >
+              <i class="fas fa-flag-checkered"></i> Speedrun (Multi)
+            </h3>
+            <p class="mb-2">
+              Une course effrénée ! Tous les joueurs reçoivent la
+              <strong>même grille</strong>.
+            </p>
+            <ul class="list-disc pl-5 text-sm space-y-1">
+              <li>Chacun joue de son côté.</li>
+              <li>
+                La barre de progression vous indique l'avancement de vos
+                adversaires en temps réel.
+              </li>
+              <li>
+                Le premier joueur à compléter sa grille à 100% gagne la partie.
+              </li>
+            </ul>
+          </section>
+
+          <section id="territory">
+            <h3
+              class="text-xl font-bold mb-2 flex items-center gap-2 text-blue-700"
+            >
+              <i class="fas fa-map-marked-alt"></i> Territoire (Multi)
+            </h3>
+            <p class="mb-2">
+              Guerre de position sur une grille <strong>partagée</strong>.
+            </p>
+            <ul class="list-disc pl-5 text-sm space-y-1">
+              <li>Une seule grille pour tout le monde.</li>
+              <li>
+                <strong>Bonne réponse :</strong> Vous gagnez 10 points et la
+                case prend votre couleur.
+              </li>
+              <li>
+                <strong>Mauvaise réponse :</strong> Vous perdez
+                <span class="text-red-500 font-bold">5 points</span> et la case
+                reste vide.
+              </li>
+              <li>
+                La partie se termine quand la grille est pleine. Le joueur avec
+                le plus de points gagne.
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        <div class="mt-8 text-center">
+          <button
+            onclick="app.showScreen('screen-menu')"
+            class="bg-slate-800 text-white px-8 py-3 rounded-full font-bold hover:bg-slate-700 transition"
+          >
+            Retour au Menu
+          </button>
+        </div>
       </div>
     </div>
 
@@ -164,7 +292,6 @@
             Difficulté
           </p>
 
-          <!-- Contrôles Hôte -->
           <div
             id="host-difficulty-controls"
             class="hidden flex justify-center gap-2"
@@ -192,7 +319,6 @@
             </button>
           </div>
 
-          <!-- Affichage Invité -->
           <div
             id="guest-difficulty-display"
             class="hidden text-slate-700 font-bold"
@@ -228,7 +354,6 @@
       id="screen-game"
       class="screen h-full w-full flex-col items-center justify-center relative"
     >
-      <!-- Scoreboard (Multiplayer) -->
       <div
         id="multi-hud"
         class="hidden absolute top-4 right-4 w-48 bg-white/90 backdrop-blur p-3 rounded-xl shadow-lg z-10"
@@ -239,7 +364,6 @@
         <div id="players-hud" class="space-y-2 text-sm font-bold"></div>
       </div>
 
-      <!-- Header -->
       <div
         class="w-full max-w-md px-4 flex justify-between items-center mb-4 bg-white/80 p-3 rounded-xl backdrop-blur-sm shadow-sm mt-16 sm:mt-0"
       >
@@ -268,36 +392,32 @@
         </div>
       </div>
 
-      <!-- Game Container -->
       <div class="w-full max-w-md px-2">
         <div
           id="grid-container"
           class="sudoku-grid bg-white rounded-lg overflow-hidden mb-6 transition-opacity duration-300"
         ></div>
 
-        <!-- Controls -->
         <div class="flex justify-between items-center mb-4 px-2">
           <button
             onclick="game.undo()"
             class="flex flex-col items-center text-white hover:text-green-100"
-            title="Annuler (Ctrl+Z)"
+            title="Annuler"
           >
             <i class="fas fa-undo text-2xl drop-shadow-md"></i>
           </button>
-
           <button
             onclick="game.handleInput(0)"
             class="flex flex-col items-center text-white hover:text-green-100"
-            title="Gomme (Del)"
+            title="Gomme"
           >
             <i class="fas fa-eraser text-2xl drop-shadow-md"></i>
           </button>
-
           <button
             id="btn-note"
             onclick="game.toggleNoteMode()"
             class="flex flex-col items-center text-white hover:text-green-100 relative"
-            title="Mode Crayon (N)"
+            title="Mode Crayon"
           >
             <div
               id="note-indicator"
@@ -306,7 +426,6 @@
               <i class="fas fa-pencil-alt"></i>
             </div>
           </button>
-
           <button
             onclick="game.resetBoard()"
             class="flex flex-col items-center text-white hover:text-green-100"
@@ -314,7 +433,6 @@
           >
             <i class="fas fa-redo text-2xl drop-shadow-md"></i>
           </button>
-
           <button
             onclick="app.quitGame()"
             class="flex flex-col items-center text-white hover:text-red-200"
@@ -324,7 +442,6 @@
           </button>
         </div>
 
-        <!-- Number Pad -->
         <div class="grid grid-cols-9 gap-1 px-1">
           <button
             class="numpad-btn h-12 rounded bg-green-600 text-white font-bold text-xl shadow-lg active:scale-95 transition border-b-4 border-green-800 active:border-b-0 active:mt-1"

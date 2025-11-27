@@ -19,7 +19,6 @@ class SudokuGenerator {
     this.fillGrid(grid);
     const solution = [...grid];
 
-    // Ajustement des cases vides selon difficulté
     let attempts;
     switch (difficulty) {
       case "easy":
@@ -86,8 +85,6 @@ function generateRoomCode() {
 }
 
 io.on("connection", (socket) => {
-  // console.log('Connecté:', socket.id);
-
   socket.on("create_room", ({ username, mode }) => {
     const roomCode = generateRoomCode();
     rooms[roomCode] = {
@@ -95,7 +92,7 @@ io.on("connection", (socket) => {
       host: socket.id,
       state: "lobby",
       mode: mode,
-      difficulty: "medium", // Par défaut
+      difficulty: "medium",
       players: [],
       gameData: null,
       territoryMap: [],
@@ -134,7 +131,6 @@ io.on("connection", (socket) => {
     room.players.push(player);
     socket.join(roomCode);
 
-    // Envoyer l'info complète (dont la difficulté actuelle)
     io.to(roomCode).emit("update_lobby", {
       players: room.players,
       mode: room.mode,
@@ -150,7 +146,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Changement de difficulté par l'hôte
   socket.on("change_difficulty", ({ roomCode, difficulty }) => {
     const room = rooms[roomCode];
     if (room && room.host === socket.id) {
@@ -187,22 +182,19 @@ io.on("connection", (socket) => {
     const playerName =
       playerIndex !== -1 ? room.players[playerIndex].username : "Un joueur";
 
-    // Retirer le joueur
     room.players = room.players.filter((p) => p.id !== socket.id);
     socket.leave(roomCode);
 
     if (room.players.length === 0) {
       delete rooms[roomCode];
     } else {
-      // Si la partie est en cours
       if (room.state === "playing") {
         io.to(roomCode).emit("player_left_game", {
           id: socket.id,
           username: playerName,
         });
       } else {
-        // Si on est dans le lobby
-        if (wasHost) room.host = room.players[0].id; // Nouveau host
+        if (wasHost) room.host = room.players[0].id;
         io.to(roomCode).emit("update_lobby", {
           players: room.players,
           mode: room.mode,
@@ -241,6 +233,7 @@ io.on("connection", (socket) => {
       // Logique client side
     } else if (room.mode === "territory") {
       if (isCorrect && room.territoryMap[index] === null) {
+        // Bonne réponse
         room.territoryMap[index] = socket.id;
         player.score += 10;
         io.to(roomCode).emit("territory_update", {
@@ -251,7 +244,7 @@ io.on("connection", (socket) => {
           scores: room.players.map((p) => ({ id: p.id, score: p.score })),
         });
 
-        // Fin de partie
+        // Check Win
         const filled = room.territoryMap.filter((x) => x !== null).length;
         const totalZeros = room.gameData.initial.filter((x) => x === 0).length;
         if (filled >= totalZeros) {
@@ -261,8 +254,14 @@ io.on("connection", (socket) => {
           io.to(roomCode).emit("game_over", { winner: winner.username });
         }
       } else if (!isCorrect) {
-        // Envoyer un feedback d'erreur uniquement au joueur qui s'est trompé
-        socket.emit("wrong_move", { index });
+        // Mauvaise réponse : Pénalité
+        player.score -= 5;
+        // On notifie tout le monde du nouveau score + on dit à ce joueur de secouer la case
+        io.to(roomCode).emit("territory_penalty", {
+          targetId: socket.id, // Celui qui tremble
+          index: index,
+          scores: room.players.map((p) => ({ id: p.id, score: p.score })),
+        });
       }
     }
   });
