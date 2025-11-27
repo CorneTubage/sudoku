@@ -48,6 +48,11 @@
           >
             Multijoueur
           </p>
+          <p
+            class="text-xs text-slate-400 font-bold tracking-wider mb-2"
+          >
+            Créer son salon
+          </p>
           <div class="grid grid-cols-2 gap-3 mb-2">
             <button
               onclick="app.createRoom('speedrun')"
@@ -62,6 +67,12 @@
               <i class="fas fa-map-marked-alt mb-1"></i> Territoire
             </button>
           </div>
+
+          <p
+            class="text-xs text-slate-400 font-bold tracking-wider mb-2"
+          >
+            Rejoindre un salon
+          </p>
 
           <div class="flex gap-2">
             <input
@@ -82,7 +93,7 @@
 
           <button
             onclick="app.showRules()"
-            class="text-slate-500 hover:text-green-600 font-bold text-sm underline"
+            class="text-slate-500 hover:text-green-600 font-bold text-sm hover:underline"
           >
             <i class="fas fa-book-open mr-1"></i> Règles du jeu
           </button>
@@ -146,27 +157,10 @@
           <h2 class="text-3xl font-bold text-slate-800">Règles du jeu</h2>
           <button
             onclick="app.showScreen('screen-menu')"
-            class="text-slate-400 hover:text-slate-600"
+            class="text-slate-400 hover:text-red-600"
           >
             <i class="fas fa-times text-2xl"></i>
           </button>
-        </div>
-        <div class="flex gap-4 mb-6 border-b pb-4">
-          <a
-            href="#solo"
-            class="px-4 py-2 bg-slate-100 rounded-lg hover:bg-slate-200 font-bold text-slate-700"
-            >Solo</a
-          >
-          <a
-            href="#speedrun"
-            class="px-4 py-2 bg-green-100 rounded-lg hover:bg-green-200 font-bold text-green-800"
-            >Speedrun</a
-          >
-          <a
-            href="#territory"
-            class="px-4 py-2 bg-blue-100 rounded-lg hover:bg-blue-200 font-bold text-blue-800"
-            >Territoire</a
-          >
         </div>
         <div class="space-y-8 text-left text-slate-700">
           <section id="solo">
@@ -236,15 +230,6 @@
               </li>
             </ul>
           </section>
-        </div>
-
-        <div class="mt-8 text-center">
-          <button
-            onclick="app.showScreen('screen-menu')"
-            class="bg-slate-800 text-white px-8 py-3 rounded-full font-bold hover:bg-slate-700 transition"
-          >
-            Retour au Menu
-          </button>
         </div>
       </div>
     </div>

@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mentions Légales - Sudoku.Zen</title>
     <link rel="shortcut icon" href="favicon.png" type="image/png" />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap");
-      body {
-        font-family: "Outfit", sans-serif;
+      html {
         background-image: url("https://wallpaper.forfun.com/fetch/fd/fd3123134263ae5fa21b1482552e2715.jpeg");
         background-position: center;
         background-size: cover;
@@ -17,59 +20,65 @@
         background-attachment: fixed;
         overscroll-behavior: none;
       }
+      body {
+        font-family: "Outfit", sans-serif;
+      }
     </style>
   </head>
-  <body class="bg-slate-50 text-slate-800 p-8">
-    <div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-      <h1 class="text-3xl font-bold mb-6 text-green-600">Mentions Légales</h1>
+  <body
+    class="bg-black/40 backdrop-blur-sm text-slate-800 p-8 h-screen w-full screen active"
+  >
+    <div class="screen h-full w-full flex flex-col items-center justify-center">
+      <div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+        <div class="flex justify-between items-center mb-6">
+          <h1 class="text-3xl font-bold text-green-600">Mentions Légales</h1>
 
-      <section class="mb-6">
-        <h2 class="text-xl font-bold mb-2">1. Éditeur du site</h2>
-        <p>
-          Ce site est un projet personnel de démonstration (Sudoku Multijoueur).
-        </p>
-      </section>
+          <a href="/" class="text-slate-400 hover:text-red-600 transition"
+            ><i class="fas fa-times text-2xl"></i>
+          </a>
+        </div>
 
-      <section class="mb-6">
-        <h2 class="text-xl font-bold mb-2">2. Hébergement</h2>
-        <p>Le site est hébergé par :</p>
-        <p class="font-bold">Render Services Inc.</p>
-        <p>525 Brannan St Suite 300, San Francisco, CA 94107, USA</p>
-        <a
-          href="https://render.com"
-          target="_blank"
-          class="text-blue-500 hover:underline"
-          >https://render.com</a
-        >
-      </section>
+        <section class="mb-6">
+          <h2 class="text-xl font-bold mb-2">1. Éditeur du site</h2>
+          <p>
+            Ce site est un projet personnel de démonstration (Sudoku
+            Multijoueur).
+          </p>
+        </section>
 
-      <section class="mb-6">
-        <h2 class="text-xl font-bold mb-2">3. Propriété intellectuelle</h2>
-        <p>
-          Le concept, le design et le code source de ce jeu sont la propriété de
-          Noé Arhan, sauf pour les bibliothèques tierces utilisées (Socket.io,
-          FontAwesome, TailwindCSS) qui restent la propriété de leurs auteurs
-          respectifs.
-        </p>
-      </section>
+        <section class="mb-6">
+          <h2 class="text-xl font-bold mb-2">2. Hébergement</h2>
+          <p>Le site est hébergé par :</p>
+          <p class="font-bold">Render Services Inc.</p>
+          <p>525 Brannan St Suite 300, San Francisco, CA 94107, USA</p>
+          <a
+            href="https://render.com"
+            target="_blank"
+            class="text-blue-500 hover:underline"
+            >https://render.com</a
+          >
+        </section>
 
-      <section class="mb-6">
-        <h2 class="text-xl font-bold mb-2">4. Données personnelles</h2>
-        <p>
-          Ce site ne collecte aucune donnée personnelle persistante. Les
-          pseudonymes utilisés lors des parties ne sont conservés que
-          temporairement dans la mémoire vive du serveur le temps de la session
-          de jeu.
-        </p>
-        <p>Aucun cookie de traçage publicitaire n'est utilisé.</p>
-      </section>
+        <section class="mb-6">
+          <h2 class="text-xl font-bold mb-2">3. Propriété intellectuelle</h2>
+          <p>
+            Le concept, le design et le code source de ce jeu sont la propriété
+            de Noé Arhan, sauf pour les bibliothèques tierces utilisées
+            (Socket.io, FontAwesome, TailwindCSS) qui restent la propriété de
+            leurs auteurs respectifs.
+          </p>
+        </section>
 
-      <div class="mt-8 pt-4 border-t text-center">
-        <a
-          href="/"
-          class="bg-slate-800 text-white px-6 py-2 rounded-full font-bold hover:bg-slate-700 transition"
-          >Retour au jeu</a
-        >
+        <section class="mb-6">
+          <h2 class="text-xl font-bold mb-2">4. Données personnelles</h2>
+          <p>
+            Ce site ne collecte aucune donnée personnelle persistante. Les
+            pseudonymes utilisés lors des parties ne sont conservés que
+            temporairement dans la mémoire vive du serveur le temps de la
+            session de jeu.
+          </p>
+          <p>Aucun cookie de traçage publicitaire n'est utilisé.</p>
+        </section>
       </div>
     </div>
   </body>
