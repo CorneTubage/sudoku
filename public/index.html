@@ -34,7 +34,6 @@
         />
 
         <div class="space-y-3">
-          <!-- Bouton Solo modifié pour vérifier la sauvegarde -->
           <button
             onclick="app.handleSoloClick()"
             class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
@@ -144,14 +143,23 @@
       </div>
     </div>
 
-    <!-- 1.6 RESUME GAME MODAL (NOUVEAU) -->
+    <!-- 1.6 RESUME GAME MODAL -->
     <div
       id="resume-modal"
       class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
     >
+      <!-- Ajout de relative ici pour positionner la croix -->
       <div
-        class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm animate-pop"
+        class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm animate-pop relative"
       >
+        <!-- NOUVEAU: CROIX DE FERMETURE -->
+        <button
+          onclick="document.getElementById('resume-modal').classList.add('hidden')"
+          class="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition p-2"
+        >
+          <i class="fas fa-times text-xl"></i>
+        </button>
+
         <div class="text-5xl mb-4">💾</div>
         <h2 class="text-2xl font-bold text-slate-800 mb-2">Partie trouvée</h2>
         <p class="text-slate-600 mb-6 text-sm">
@@ -398,8 +406,11 @@
           id="grid-container"
           class="sudoku-grid bg-white rounded-lg overflow-hidden mb-6 transition-opacity duration-300"
         ></div>
+
+        <!-- Controls (ID AJOUTÉS pour masquage dynamique) -->
         <div class="flex justify-between items-center mb-4 px-2">
           <button
+            id="btn-undo"
             onclick="game.undo()"
             class="flex flex-col items-center text-white hover:text-green-100"
             title="Annuler"
@@ -407,6 +418,7 @@
             <i class="fas fa-undo text-2xl drop-shadow-md"></i>
           </button>
           <button
+            id="btn-erase"
             onclick="game.handleInput(0)"
             class="flex flex-col items-center text-white hover:text-green-100"
             title="Gomme"
@@ -427,6 +439,7 @@
             </div>
           </button>
           <button
+            id="btn-reset"
             onclick="game.resetBoard()"
             class="flex flex-col items-center text-white hover:text-green-100"
             title="Recommencer"
@@ -441,6 +454,7 @@
             <i class="fas fa-sign-out-alt text-2xl drop-shadow-md"></i>
           </button>
         </div>
+
         <div class="grid grid-cols-9 gap-1 px-1">
           <button
             class="numpad-btn h-12 rounded bg-green-600 text-white font-bold text-xl shadow-lg active:scale-95 transition border-b-4 border-green-800 active:border-b-0 active:mt-1"
