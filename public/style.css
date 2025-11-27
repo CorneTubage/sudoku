@@ -55,13 +55,18 @@ body {
   background-color: var(--user-color) !important; 
 }
 
-/* 3x3 Block Highlight */
-.cell.highlighted-box {
-  background-color: #f0fdf4; /* Vert très clair par défaut */
+/* CORRECTION COULEURS : 
+   Utilisation de color-mix pour créer une teinte claire (85% de blanc) 
+   basée sur la couleur du joueur actuel.
+*/
+.cell.highlighted { 
+    background-color: color-mix(in srgb, var(--user-color), white 85%); 
 }
 
-.cell.highlighted { background-color: #f0fdf4; }
-.cell.same-number { background-color: #bbf7d0; }
+.cell.same-number { 
+    background-color: color-mix(in srgb, var(--user-color), white 60%); 
+}
+
 .cell.error { color: #991b1b !important; background-color: #fecaca !important; }
 
 /* Territory Mode */

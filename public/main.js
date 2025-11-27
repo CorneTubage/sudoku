@@ -18,7 +18,6 @@ const app = {
       .querySelectorAll(".screen")
       .forEach((s) => s.classList.remove("active"));
     document.getElementById(id).classList.add("active");
-    // Masquer le modal de victoire au changement d'écran par sécurité
     const modal = document.getElementById("solo-win-modal");
     if (modal) modal.classList.add("hidden");
   },
@@ -104,6 +103,7 @@ socket.on("joined_success", (data) => {
   app.myId = data.playerId;
 
   app.myColor = data.color || "#86efac";
+  // Mise à jour de la variable CSS pour que les highlights soient de la bonne couleur
   document.documentElement.style.setProperty("--user-color", app.myColor);
 
   document.getElementById("display-room-code").innerText = data.roomCode;
@@ -575,6 +575,13 @@ class Game {
     if (this.history.length > 20) this.history.shift();
 
     if (app.currentMode !== "solo") {
+      // PROTECTION TERRITOIRE : Si la case est déjà remplie (donc validée), on ne peut plus la modifier
+      if (
+        app.currentMode === "territory" &&
+        this.board[this.selectedCellIndex] !== 0
+      )
+        return;
+
       if (num !== 0 && !this.isNoteMode) {
         socket.emit("submit_move", {
           roomCode: app.roomCode,
@@ -591,6 +598,9 @@ class Game {
         this.toggleNoteNumber(num);
         this.renderGrid();
       } else if (num === 0) {
+        // En territoire, on ne peut pas effacer (car on ne peut pas sélectionner une case remplie de toute façon)
+        if (app.currentMode === "territory") return;
+
         this.board[this.selectedCellIndex] = 0;
         this.renderGrid();
       }
@@ -603,7 +613,7 @@ class Game {
       this.board[this.selectedCellIndex] = num;
       this.notes[this.selectedCellIndex] = [];
       if (num === 0) this.board[this.selectedCellIndex] = 0;
-      this.checkSoloWin(); // NOUVEAU
+      this.checkSoloWin();
     }
     this.renderGrid();
   }
@@ -650,7 +660,6 @@ class Game {
     });
   }
 
-  // NOUVEAU : Vérification victoire solo
   checkSoloWin() {
     let isFull = true;
     let isCorrect = true;
@@ -663,7 +672,6 @@ class Game {
     }
     if (isFull && isCorrect) {
       this.stopTimer();
-      // Afficher le modal victoire (HTML doit avoir cet ID)
       const modal = document.getElementById("solo-win-modal");
       if (modal) modal.classList.remove("hidden");
       else alert("Gagné !");
