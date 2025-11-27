@@ -20,6 +20,8 @@ const app = {
     document.getElementById(id).classList.add("active");
     const modal = document.getElementById("solo-win-modal");
     if (modal) modal.classList.add("hidden");
+    const resumeModal = document.getElementById("resume-modal");
+    if (resumeModal) resumeModal.classList.add("hidden");
   },
 
   showRules: () => {
@@ -27,6 +29,60 @@ const app = {
   },
   showSoloDifficulty: () => {
     app.showScreen("screen-difficulty");
+  },
+
+  // NOUVEAU: Gère le clic sur "Mode Solo"
+  handleSoloClick: () => {
+    const saved = localStorage.getItem("sudoku_solo_save");
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        // Vérifier si le joueur a fait au moins un coup (différent de l'initial)
+        // et si la grille n'est pas pleine/finie (bien que saveLocalGame gère déjà la suppression si fini)
+        const hasMoves = data.board.some(
+          (val, idx) => val !== data.initial[idx]
+        );
+
+        if (hasMoves) {
+          // Afficher la modale de reprise
+          const diffLabel = {
+            easy: "Facile",
+            medium: "Moyen",
+            hard: "Difficile",
+          };
+          document.getElementById("resume-diff").innerText =
+            diffLabel[data.difficulty] || "Moyen";
+          document.getElementById("resume-modal").classList.remove("hidden");
+          return;
+        }
+      } catch (e) {
+        console.error("Save corrompue", e);
+        localStorage.removeItem("sudoku_solo_save");
+      }
+    }
+    // Sinon, flux normal
+    app.showSoloDifficulty();
+  },
+
+  // NOUVEAU: Reprendre la partie sauvegardée
+  resumeSoloGame: () => {
+    const saved = localStorage.getItem("sudoku_solo_save");
+    if (saved) {
+      const data = JSON.parse(saved);
+      app.currentMode = "solo";
+      app.myColor = "#86efac";
+      document.documentElement.style.setProperty("--user-color", app.myColor);
+      app.showScreen("screen-game");
+      document.getElementById("multi-hud").classList.add("hidden");
+      document.getElementById("mode-display").innerText =
+        "Mode Solo (" + (data.difficulty || "Reprise") + ")";
+      document.getElementById("btn-pause").classList.remove("hidden");
+
+      // Init Game avec les données sauvegardées
+      game.loadSavedGame(data);
+    } else {
+      app.showSoloDifficulty();
+    }
   },
 
   startSolo: (difficulty = "medium") => {
@@ -351,6 +407,7 @@ class Game {
     this.timerSeconds = 0;
     this.timerInterval = null;
     this.lastScores = null;
+    this.difficulty = "medium"; // Store difficulty
 
     this.gridEl = document.getElementById("grid-container");
     this.gridEl.addEventListener("click", (e) => {
@@ -384,7 +441,37 @@ class Game {
     if (newIdx >= 0 && newIdx < 81) this.selectCell(newIdx);
   }
 
+  // NOUVEAU: Sauvegarder l'état actuel (Solo uniquement)
+  saveLocalGame() {
+    if (app.currentMode !== "solo") return;
+    const data = {
+      board: this.board,
+      initial: this.initial,
+      solution: this.solution,
+      notes: this.notes,
+      timer: this.timerSeconds,
+      difficulty: this.difficulty,
+    };
+    localStorage.setItem("sudoku_solo_save", JSON.stringify(data));
+  }
+
+  // NOUVEAU: Charger une partie sauvegardée
+  loadSavedGame(data) {
+    this.board = data.board;
+    this.initial = data.initial;
+    this.solution = data.solution;
+    this.notes = data.notes;
+    this.difficulty = data.difficulty;
+    this.history = [];
+
+    this.timerSeconds = data.timer || 0;
+    this.isPaused = false;
+    this.renderGrid();
+    this.startTimer(this.timerSeconds);
+  }
+
   initSolo(difficulty) {
+    this.difficulty = difficulty;
     const data = this.localLogic.generate(difficulty);
     this.initial = [...data.initial];
     this.board = [...data.initial];
@@ -392,8 +479,14 @@ class Game {
     this.notes = {};
     this.history = [];
     this.isPaused = false;
+
+    // Suppression de l'ancienne save car nouvelle partie
+    localStorage.removeItem("sudoku_solo_save");
+
     this.renderGrid();
     this.startTimer();
+    // On sauvegarde l'état initial
+    this.saveLocalGame();
   }
 
   initMultiplayer(initialGrid, playersList) {
@@ -408,16 +501,21 @@ class Game {
     this.startTimer();
   }
 
-  startTimer() {
+  startTimer(startAt = 0) {
     this.stopTimer();
-    this.timerSeconds = 0;
-    document.getElementById("timer").innerText = "00:00";
+    this.timerSeconds = startAt;
+    document.getElementById("timer").innerText = this.formatTime(
+      this.timerSeconds
+    );
     this.timerInterval = setInterval(() => {
       if (!this.isPaused) {
         this.timerSeconds++;
         document.getElementById("timer").innerText = this.formatTime(
           this.timerSeconds
         );
+
+        // Autosave toutes les 5 secondes en solo
+        if (this.timerSeconds % 5 === 0) this.saveLocalGame();
       }
     }, 1000);
   }
@@ -459,6 +557,7 @@ class Game {
       this.notes = {};
       this.history = [];
       this.renderGrid();
+      if (app.currentMode === "solo") this.saveLocalGame();
       if (app.currentMode === "speedrun") this.checkProgress();
     }
   }
@@ -469,6 +568,7 @@ class Game {
     this.board = [...lastState.board];
     this.notes = JSON.parse(JSON.stringify(lastState.notes));
     this.renderGrid();
+    if (app.currentMode === "solo") this.saveLocalGame();
   }
 
   renderGrid() {
@@ -575,7 +675,6 @@ class Game {
     if (this.history.length > 20) this.history.shift();
 
     if (app.currentMode !== "solo") {
-      // PROTECTION TERRITOIRE : Si la case est déjà remplie (donc validée), on ne peut plus la modifier
       if (
         app.currentMode === "territory" &&
         this.board[this.selectedCellIndex] !== 0
@@ -598,9 +697,7 @@ class Game {
         this.toggleNoteNumber(num);
         this.renderGrid();
       } else if (num === 0) {
-        // En territoire, on ne peut pas effacer (car on ne peut pas sélectionner une case remplie de toute façon)
         if (app.currentMode === "territory") return;
-
         this.board[this.selectedCellIndex] = 0;
         this.renderGrid();
       }
@@ -613,6 +710,9 @@ class Game {
       this.board[this.selectedCellIndex] = num;
       this.notes[this.selectedCellIndex] = [];
       if (num === 0) this.board[this.selectedCellIndex] = 0;
+
+      // Sauvegarde après chaque coup
+      this.saveLocalGame();
       this.checkSoloWin();
     }
     this.renderGrid();
@@ -628,6 +728,9 @@ class Game {
     const idx = this.notes[this.selectedCellIndex].indexOf(num);
     if (idx > -1) this.notes[this.selectedCellIndex].splice(idx, 1);
     else this.notes[this.selectedCellIndex].push(num);
+
+    // Sauvegarde des notes
+    if (app.currentMode === "solo") this.saveLocalGame();
   }
 
   updateTerritory(data) {
@@ -672,6 +775,9 @@ class Game {
     }
     if (isFull && isCorrect) {
       this.stopTimer();
+      // Victoire => On supprime la save pour ne pas reprendre une partie finie
+      localStorage.removeItem("sudoku_solo_save");
+
       const modal = document.getElementById("solo-win-modal");
       if (modal) modal.classList.remove("hidden");
       else alert("Gagné !");

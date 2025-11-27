@@ -34,8 +34,9 @@
         />
 
         <div class="space-y-3">
+          <!-- Bouton Solo modifié pour vérifier la sauvegarde -->
           <button
-            onclick="app.showSoloDifficulty()"
+            onclick="app.handleSoloClick()"
             class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
           >
             <i class="fas fa-user"></i> Mode Solo
@@ -48,9 +49,7 @@
           >
             Multijoueur
           </p>
-          <p
-            class="text-xs text-slate-400 font-bold tracking-wider mb-2"
-          >
+          <p class="text-xs text-slate-400 font-bold tracking-wider mb-2">
             Créer son salon
           </p>
           <div class="grid grid-cols-2 gap-3 mb-2">
@@ -68,9 +67,7 @@
             </button>
           </div>
 
-          <p
-            class="text-xs text-slate-400 font-bold tracking-wider mb-2"
-          >
+          <p class="text-xs text-slate-400 font-bold tracking-wider mb-2">
             Rejoindre un salon
           </p>
 
@@ -101,7 +98,9 @@
       </div>
 
       <div class="absolute bottom-4 text-xs text-white/70">
-        <a href="legal.html" class="no-underline hover:text-white hover:underline"
+        <a
+          href="legal.html"
+          class="no-underline hover:text-white hover:underline"
           >Mentions Légales</a
         >
       </div>
@@ -145,6 +144,37 @@
       </div>
     </div>
 
+    <!-- 1.6 RESUME GAME MODAL (NOUVEAU) -->
+    <div
+      id="resume-modal"
+      class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+    >
+      <div
+        class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm animate-pop"
+      >
+        <div class="text-5xl mb-4">💾</div>
+        <h2 class="text-2xl font-bold text-slate-800 mb-2">Partie trouvée</h2>
+        <p class="text-slate-600 mb-6 text-sm">
+          Une partie <span id="resume-diff" class="font-bold">Moyen</span> est
+          en cours. Voulez-vous la reprendre ?
+        </p>
+        <div class="space-y-3">
+          <button
+            onclick="app.resumeSoloGame()"
+            class="w-full bg-slate-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-700 shadow-lg transition"
+          >
+            Reprendre la partie
+          </button>
+          <button
+            onclick="app.showSoloDifficulty(); document.getElementById('resume-modal').classList.add('hidden')"
+            class="w-full bg-slate-100 text-slate-600 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 hover:text-red-500 transition"
+          >
+            Nouvelle partie
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 1.8 RULES SCREEN -->
     <div
       id="screen-rules"
@@ -161,6 +191,23 @@
           >
             <i class="fas fa-times text-2xl"></i>
           </button>
+        </div>
+        <div class="flex gap-4 mb-6 border-b pb-4">
+          <a
+            href="#solo"
+            class="px-4 py-2 bg-slate-100 rounded-lg hover:bg-slate-200 font-bold text-slate-700"
+            >Solo</a
+          >
+          <a
+            href="#speedrun"
+            class="px-4 py-2 bg-green-100 rounded-lg hover:bg-green-200 font-bold text-green-800"
+            >Speedrun</a
+          >
+          <a
+            href="#territory"
+            class="px-4 py-2 bg-blue-100 rounded-lg hover:bg-blue-200 font-bold text-blue-800"
+            >Territoire</a
+          >
         </div>
         <div class="space-y-8 text-left text-slate-700">
           <section id="solo">
@@ -470,7 +517,7 @@
       </div>
     </div>
 
-    <!-- NOUVEAU: SOLO WIN MODAL -->
+    <!-- SOLO WIN MODAL -->
     <div
       id="solo-win-modal"
       class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
