@@ -25,12 +25,11 @@ body {
 /* Sur mobile, le HUD est plus discret ou pliable */
 @media (max-width: 640px) {
     #multi-hud {
-        top: auto;
-        bottom: 70px; /* Au dessus des contrôles */
+        top: 10px;
         right: 10px;
         left: 10px;
         width: auto;
-        max-height: 100px; /* Limite hauteur */
+        max-height: 140px; /* Limite hauteur */
         overflow-y: auto;
         font-size: 0.8rem;
     }
