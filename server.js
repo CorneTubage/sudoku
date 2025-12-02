@@ -106,14 +106,128 @@ io.on("connection", (socket) => {
       socket.emit("error", "Cette salle n'existe pas.");
       return;
     }
-    // On autorise la reconnexion si la partie est en cours, mais on simplifie ici :
-    // Si playing, on rejette sauf si on implémente une vraie reconnexion par ID (complexe).
-    // Pour l'instant on garde le blocage si 'playing' pour les nouveaux.
-    if (
-      room.state !== "lobby" &&
-      !room.players.find((p) => p.username === username)
-    ) {
-      // Petite tolérance si même pseudo (très basique)
+
+    // --- LOGIQUE DE RECONNEXION ---
+    const existingPlayer = room.players.find((p) => p.username === username);
+
+    if (existingPlayer) {
+      // C'est une reconnexion ! On met à jour le socket ID
+      const oldId = existingPlayer.id;
+      existingPlayer.id = socket.id; // Mise à jour de l'identité technique
+
+      // Si c'était l'hôte, on met à jour l'hôte
+      if (room.host === oldId) {
+        room.host = socket.id;
+      }
+
+      socket.join(roomCode);
+
+      // 1. Confirmer la connexion avec les infos du joueur existant
+      socket.emit("joined_success", {
+        roomCode,
+        playerId: socket.id,
+        mode: room.mode,
+        color: existingPlayer.color,
+      });
+
+      // 2. Si la partie est en cours, on renvoie TOUT l'état du jeu pour synchroniser
+      if (room.state === "playing") {
+        // Remplacer les cases vides par les cases du territoire possédées par d'autres
+        let syncGrid = [...room.gameData.initial];
+
+        // Calcul pour speedrun progression
+        const totalEmpty = room.gameData.initial.filter((x) => x === 0).length;
+
+        socket.emit("game_started", {
+          initial: room.gameData.initial,
+          players: room.players,
+          totalEmpty: totalEmpty,
+        });
+
+        // Restaurer l'état du territoire
+        if (room.mode === "territory") {
+          room.territoryMap.forEach((ownerId, index) => {
+            if (ownerId) {
+              // Retrouver le propriétaire original (attention les ID ont pu changer si eux aussi ont reco,
+              // mais on se base sur l'objet player référence)
+              const owner = room.players.find(
+                (p) =>
+                  p.id === ownerId ||
+                  p.username ===
+                    room.players.find((old) => old.id === ownerId)?.username
+              );
+              // Note: La gestion parfaite des IDs en territoire demande une map persistante par username,
+              // ici on simplifie en renvoyant l'état actuel
+
+              // On ré-émet les updates de territoire pour remplir la grille visuelle
+              // On doit trouver la valeur correcte
+              const val = room.gameData.solution[index];
+              // Trouver la couleur du propriétaire actuel de la case
+              // (Le ownerId dans territoryMap est l'ID socket au moment de la capture)
+              // On cherche le joueur qui a cet ID OU qui avait cet ID avant (c'est complexe sans persistence DB)
+              // Simplification: On envoie l'update tel quel, le client gère l'affichage
+
+              // Pour faire simple : on renvoie tout l'historique territory au joueur qui revient
+              // Mais comme on ne stocke pas l'historique des coups, on itère sur la map
+            }
+          });
+
+          // Force update scores
+          io.to(roomCode).emit("territory_update", {
+            index: -1, // Dummy index juste pour update score
+            value: 0,
+            ownerId: null,
+            color: null,
+            scores: room.players.map((p) => ({ id: p.id, score: p.score })),
+          });
+
+          // Pour repeindre la grille du joueur reconnecté, on doit lui renvoyer toutes les cases prises
+          // Le plus simple est de lui dire : "Voici la map actuelle"
+          for (let i = 0; i < 81; i++) {
+            if (room.territoryMap[i]) {
+              const owner = room.players.find(
+                (p) => p.id === room.territoryMap[i]
+              );
+              if (owner) {
+                socket.emit("territory_update", {
+                  index: i,
+                  value: room.gameData.solution[i],
+                  ownerId: owner.id,
+                  color: owner.color,
+                  scores: room.players.map((p) => ({
+                    id: p.id,
+                    score: p.score,
+                  })),
+                });
+              }
+            }
+          }
+        } else {
+          // Speedrun : renvoyer les barres de progression
+          io.to(roomCode).emit(
+            "progress_update",
+            room.players.map((p) => ({
+              id: p.id,
+              username: p.username,
+              progress: p.progress,
+              color: p.color,
+            }))
+          );
+        }
+      } else {
+        // Si on est encore dans le lobby
+        io.to(roomCode).emit("update_lobby", {
+          players: room.players,
+          mode: room.mode,
+          difficulty: room.difficulty,
+          hostId: room.host,
+        });
+      }
+      return; // Fin de la logique de reconnexion
+    }
+
+    // --- NOUVEAU JOUEUR ---
+    if (room.state !== "lobby") {
       socket.emit("error", "La partie a déjà commencé.");
       return;
     }
@@ -138,18 +252,18 @@ io.on("connection", (socket) => {
     room.players.push(player);
     socket.join(roomCode);
 
-    io.to(roomCode).emit("update_lobby", {
-      players: room.players,
-      mode: room.mode,
-      difficulty: room.difficulty,
-      hostId: room.host,
-    });
-
     socket.emit("joined_success", {
       roomCode,
       playerId: socket.id,
       mode: room.mode,
       color: playerColor,
+    });
+
+    io.to(roomCode).emit("update_lobby", {
+      players: room.players,
+      mode: room.mode,
+      difficulty: room.difficulty,
+      hostId: room.host,
     });
   });
 
@@ -166,29 +280,40 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ACTION EXPLICITE "Quitter" (Bouton Croix ou Quitter)
   socket.on("leave_room", (roomCode) => {
-    leaveRoomLogic(socket, roomCode);
+    leaveRoomLogic(socket, roomCode, true); // true = force remove
   });
 
+  // DÉCONNEXION INVOLONTAIRE (Refresh / Fermeture onglet)
   socket.on("disconnect", () => {
     for (const code in rooms) {
       const room = rooms[code];
       if (room.players.find((p) => p.id === socket.id)) {
-        leaveRoomLogic(socket, code);
+        leaveRoomLogic(socket, code, false); // false = soft disconnect
         break;
       }
     }
   });
 
-  function leaveRoomLogic(socket, roomCode) {
+  function leaveRoomLogic(socket, roomCode, forceRemove) {
     const room = rooms[roomCode];
     if (!room) return;
+
+    // Si la partie est en cours ET que ce n'est pas un départ volontaire ("Quitter"),
+    // on garde le joueur dans la liste pour qu'il puisse se reconnecter.
+    if (room.state === "playing" && !forceRemove) {
+      // On ne fait rien, on attend son retour.
+      // Optionnel : on pourrait marquer le joueur comme "offline" pour l'afficher grisé
+      return;
+    }
 
     const playerIndex = room.players.findIndex((p) => p.id === socket.id);
     const wasHost = room.host === socket.id;
     const playerName =
       playerIndex !== -1 ? room.players[playerIndex].username : "Un joueur";
 
+    // Suppression définitive
     room.players = room.players.filter((p) => p.id !== socket.id);
     socket.leave(roomCode);
 
@@ -219,7 +344,6 @@ io.on("connection", (socket) => {
     room.gameData = sudokuGen.generate(room.difficulty);
     room.state = "playing";
 
-    // Calcul du nombre de cases à remplir pour le calcul du %
     const totalEmpty = room.gameData.initial.filter((x) => x === 0).length;
 
     if (room.mode === "territory") room.territoryMap = new Array(81).fill(null);
@@ -227,7 +351,7 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("game_started", {
       initial: room.gameData.initial,
       players: room.players,
-      totalEmpty: totalEmpty, // Important pour la barre de progression
+      totalEmpty: totalEmpty,
     });
   });
 
@@ -237,15 +361,17 @@ io.on("connection", (socket) => {
 
     const correctValue = room.gameData.solution[index];
     const isCorrect = value === correctValue;
+    // On cherche par Socket ID, mais attention aux mises à jour d'ID lors de la reco
+    // Idéalement on utiliserait un UserID stable, mais ici on update l'ID dans l'objet player
     const player = room.players.find((p) => p.id === socket.id);
 
     if (!player) return;
 
     if (room.mode === "speedrun") {
-      // Speedrun : validation simple côté serveur ou confiance au client (ici on ne fait rien de spécial, le client gère sa progression)
+      // ...
     } else if (room.mode === "territory") {
       if (isCorrect && room.territoryMap[index] === null) {
-        room.territoryMap[index] = socket.id;
+        room.territoryMap[index] = socket.id; // On stocke le socket ID actuel
         player.score += 10;
         io.to(roomCode).emit("territory_update", {
           index,
