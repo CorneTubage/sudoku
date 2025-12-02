@@ -106,7 +106,14 @@ io.on("connection", (socket) => {
       socket.emit("error", "Cette salle n'existe pas.");
       return;
     }
-    if (room.state !== "lobby") {
+    // On autorise la reconnexion si la partie est en cours, mais on simplifie ici :
+    // Si playing, on rejette sauf si on implémente une vraie reconnexion par ID (complexe).
+    // Pour l'instant on garde le blocage si 'playing' pour les nouveaux.
+    if (
+      room.state !== "lobby" &&
+      !room.players.find((p) => p.username === username)
+    ) {
+      // Petite tolérance si même pseudo (très basique)
       socket.emit("error", "La partie a déjà commencé.");
       return;
     }
@@ -131,20 +138,18 @@ io.on("connection", (socket) => {
     room.players.push(player);
     socket.join(roomCode);
 
-    // CORRECTION : On envoie d'abord l'ID au joueur pour qu'il sache qui il est
-    socket.emit("joined_success", {
-      roomCode,
-      playerId: socket.id,
-      mode: room.mode,
-      color: playerColor,
-    });
-
-    // ENSUITE on met à jour le lobby (le client pourra maintenant comparer son ID avec hostId)
     io.to(roomCode).emit("update_lobby", {
       players: room.players,
       mode: room.mode,
       difficulty: room.difficulty,
       hostId: room.host,
+    });
+
+    socket.emit("joined_success", {
+      roomCode,
+      playerId: socket.id,
+      mode: room.mode,
+      color: playerColor,
     });
   });
 
@@ -213,11 +218,16 @@ io.on("connection", (socket) => {
 
     room.gameData = sudokuGen.generate(room.difficulty);
     room.state = "playing";
+
+    // Calcul du nombre de cases à remplir pour le calcul du %
+    const totalEmpty = room.gameData.initial.filter((x) => x === 0).length;
+
     if (room.mode === "territory") room.territoryMap = new Array(81).fill(null);
 
     io.to(roomCode).emit("game_started", {
       initial: room.gameData.initial,
       players: room.players,
+      totalEmpty: totalEmpty, // Important pour la barre de progression
     });
   });
 
@@ -232,7 +242,7 @@ io.on("connection", (socket) => {
     if (!player) return;
 
     if (room.mode === "speedrun") {
-      // Logique client side
+      // Speedrun : validation simple côté serveur ou confiance au client (ici on ne fait rien de spécial, le client gère sa progression)
     } else if (room.mode === "territory") {
       if (isCorrect && room.territoryMap[index] === null) {
         room.territoryMap[index] = socket.id;
@@ -251,7 +261,10 @@ io.on("connection", (socket) => {
           const winner = room.players.reduce((prev, current) =>
             prev.score > current.score ? prev : current
           );
-          io.to(roomCode).emit("game_over", { winner: winner.username });
+          io.to(roomCode).emit("game_over", {
+            winner: winner.username,
+            fullGrid: room.gameData.solution,
+          });
         }
       } else if (!isCorrect) {
         player.score -= 5;
@@ -281,8 +294,11 @@ io.on("connection", (socket) => {
         }))
       );
 
-      if (progress === 100) {
-        io.to(roomCode).emit("game_over", { winner: player.username });
+      if (progress >= 100) {
+        io.to(roomCode).emit("game_over", {
+          winner: player.username,
+          fullGrid: room.gameData.solution,
+        });
         room.state = "finished";
       }
     }
@@ -290,4 +306,4 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Serveur lancé sur le port http://127.0.0.1:${PORT}`));
+server.listen(PORT, () => console.log(`Serveur lancé sur le port ${PORT}`));

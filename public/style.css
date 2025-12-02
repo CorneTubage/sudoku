@@ -1,7 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap");
 
 :root {
-  /* Couleur par défaut (Solo) */
   --user-color: #86efac; 
 }
 
@@ -18,7 +17,32 @@ body {
 .screen { display: none; }
 .screen.active { display: flex; }
 
-/* Grille */
+/* HUD RESPONSIVE */
+#multi-hud {
+    transition: all 0.3s ease;
+}
+
+/* Sur mobile, le HUD est plus discret ou pliable */
+@media (max-width: 640px) {
+    #multi-hud {
+        top: auto;
+        bottom: 70px; /* Au dessus des contrôles */
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-height: 100px; /* Limite hauteur */
+        overflow-y: auto;
+        font-size: 0.8rem;
+    }
+    
+    /* Optionnel: faire en sorte que le HUD ne soit pas par dessus la grille si possible, 
+       ou le rendre semi-transparent */
+    #multi-hud.minimized {
+        height: 30px;
+        overflow: hidden;
+    }
+}
+
 .sudoku-grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
@@ -46,50 +70,24 @@ body {
 .cell:nth-child(n + 19):nth-child(-n + 27),
 .cell:nth-child(n + 46):nth-child(-n + 54) { border-bottom: 2px solid #65a30d; }
 
-/* États */
 .cell.initial { font-weight: 700; color: #0f172a; }
 .cell.user-input { color: #16a34a; font-weight: 600; }
 
-/* Sélection dynamique selon le joueur */
-.cell.selected { 
-  background-color: var(--user-color) !important; 
-}
+.cell.selected { background-color: var(--user-color) !important; }
 
-/* CORRECTION COULEURS : 
-   Utilisation de color-mix pour créer une teinte claire (85% de blanc) 
-   basée sur la couleur du joueur actuel.
-*/
-.cell.highlighted { 
-    background-color: color-mix(in srgb, var(--user-color), white 85%); 
-}
-
-.cell.same-number { 
-    background-color: color-mix(in srgb, var(--user-color), white 60%); 
-}
-
+.cell.highlighted { background-color: color-mix(in srgb, var(--user-color), white 85%); }
+.cell.same-number { background-color: color-mix(in srgb, var(--user-color), white 60%); }
 .cell.error { color: #991b1b !important; background-color: #fecaca !important; }
 
-/* Territory Mode */
+/* Territory Mode : couleur dynamique définie par le JS inline */
 .cell.owned { color: white !important; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
 
-/* Animations */
-@keyframes popIn {
-  0% { transform: scale(0.8); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
+@keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 .animate-pop { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
-}
-.animate-shake {
-  animation: shake 0.3s ease-in-out;
-  background-color: #fee2e2 !important; /* Flash rouge */
-}
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+.animate-shake { animation: shake 0.3s ease-in-out; background-color: #fee2e2 !important; }
 
-/* Notes */
 .note-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

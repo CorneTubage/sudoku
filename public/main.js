@@ -13,6 +13,31 @@ const app = {
   myId: null,
   myColor: "#86efac",
 
+  init: () => {
+    // GESTION URL (Reconnexion auto)
+    const params = new URLSearchParams(window.location.search);
+    const urlRoom = params.get("room");
+    const urlUser = params.get("user");
+
+    if (urlRoom && urlUser) {
+      document.getElementById("username").value = urlUser;
+      app.joinRoom(urlRoom);
+    }
+  },
+
+  updateUrl: () => {
+    if (app.roomCode && app.username) {
+      const url = new URL(window.location);
+      url.searchParams.set("room", app.roomCode);
+      url.searchParams.set("user", app.username);
+      window.history.pushState({}, "", url);
+    } else {
+      const url = new URL(window.location);
+      url.searchParams.delete("room");
+      window.history.pushState({}, "", url);
+    }
+  },
+
   showScreen: (id) => {
     document
       .querySelectorAll(".screen")
@@ -31,7 +56,6 @@ const app = {
     app.showScreen("screen-difficulty");
   },
 
-  // NOUVEAU: Gère l'affichage des boutons selon le mode
   updateControls: () => {
     const isTerritory = app.currentMode === "territory";
     const toggle = (id, hide) => {
@@ -41,8 +65,6 @@ const app = {
         else el.classList.remove("hidden");
       }
     };
-
-    // Cache Undo, Eraser, Reset en mode Territoire
     toggle("btn-undo", isTerritory);
     toggle("btn-erase", isTerritory);
     toggle("btn-reset", isTerritory);
@@ -87,7 +109,7 @@ const app = {
         "Mode Solo (" + (data.difficulty || "Reprise") + ")";
       document.getElementById("btn-pause").classList.remove("hidden");
 
-      app.updateControls(); // MAJ des boutons
+      app.updateControls();
       game.loadSavedGame(data);
     } else {
       app.showSoloDifficulty();
@@ -104,7 +126,12 @@ const app = {
       "Mode Solo (" + difficulty + ")";
     document.getElementById("btn-pause").classList.remove("hidden");
 
-    app.updateControls(); // MAJ des boutons
+    // Nettoyer URL pour le solo
+    const url = new URL(window.location);
+    url.searchParams.delete("room");
+    window.history.pushState({}, "", url);
+
+    app.updateControls();
     game.initSolo(difficulty);
   },
 
@@ -139,6 +166,7 @@ const app = {
     if (app.roomCode) {
       socket.emit("leave_room", app.roomCode);
       app.roomCode = null;
+      app.updateUrl(); // Clean URL
       app.showScreen("screen-menu");
     }
   },
@@ -152,6 +180,7 @@ const app = {
       if (app.roomCode) {
         socket.emit("leave_room", app.roomCode);
       }
+      app.updateUrl(); // Clean URL
       location.reload();
     }
   },
@@ -173,6 +202,7 @@ socket.on("joined_success", (data) => {
   document.documentElement.style.setProperty("--user-color", app.myColor);
 
   document.getElementById("display-room-code").innerText = data.roomCode;
+  app.updateUrl(); // Met à jour l'URL avec le code
   app.showScreen("screen-lobby");
 });
 
@@ -238,8 +268,17 @@ socket.on("game_started", (data) => {
     "mode-display"
   ).innerText = `Multijoueur : ${modeName}`;
 
-  app.updateControls(); // MAJ des boutons
-  game.initMultiplayer(data.initial, data.players);
+  app.updateControls();
+
+  // Init scores/progress visual
+  if (data.players) {
+    if (app.currentMode === "territory")
+      updateHudScores(data.players.map((p) => ({ id: p.id, score: 0 })));
+    else
+      updateHudProgress(data.players.map((p) => ({ id: p.id, progress: 0 })));
+  }
+
+  game.initMultiplayer(data.initial, data.players, data.totalEmpty);
 });
 
 socket.on("player_left_game", (data) => {
@@ -273,8 +312,15 @@ socket.on("progress_update", (playersData) => {
 
 socket.on("game_over", (data) => {
   game.stopTimer();
+
+  // Remplir la grille si on reçoit la solution complète (Speedrun)
+  if (data.fullGrid) {
+    game.board = data.fullGrid;
+    game.renderGrid();
+  }
+
   alert(`Partie terminée ! Vainqueur : ${data.winner}`);
-  setTimeout(() => location.reload(), 3000);
+  setTimeout(() => location.reload(), 5000); // Délai un peu plus long pour voir la grille
 });
 
 socket.on("error", (msg) => alert(msg));
@@ -336,14 +382,47 @@ class SudokuLogic {
   constructor() {
     this.grid = new Array(81).fill(0);
   }
-  isValid(grid, row, col, num) {
-    for (let x = 0; x < 9; x++) if (grid[row * 9 + x] === num) return false;
-    for (let x = 0; x < 9; x++) if (grid[x * 9 + col] === num) return false;
-    let sr = row - (row % 3),
-      sc = col - (col % 3);
+
+  generate(difficulty) {
+    // Pour le solo, on génère une grille valide
+    let g = new Array(81).fill(0);
+    this.fillBox(g, 0, 0);
+    this.fillBox(g, 3, 3);
+    this.fillBox(g, 6, 6);
+    this.fillGrid(g);
+    let s = [...g]; // Solution générée
+
+    let attempts;
+    if (difficulty === "easy") attempts = 30;
+    else if (difficulty === "hard") attempts = 55;
+    else attempts = 45;
+
+    let k = attempts;
+    while (k > 0) {
+      let x = Math.floor(Math.random() * 81);
+      if (g[x] !== 0) {
+        g[x] = 0;
+        k--;
+      }
+    }
+    return { initial: g, solution: s };
+  }
+
+  // Fonctions utilitaires pour la génération
+  fillBox(g, r, c) {
+    for (let i = 0; i < 3; i++)
+      for (let j = 0; j < 3; j++) {
+        let n;
+        do {
+          n = Math.floor(Math.random() * 9) + 1;
+        } while (!this.isSafe(g, r, c, n));
+        g[(r + i) * 9 + (c + j)] = n;
+      }
+  }
+  isSafe(g, r, c, n) {
     for (let i = 0; i < 3; i++)
       for (let j = 0; j < 3; j++)
-        if (grid[(sr + i) * 9 + (sc + j)] === num) return false;
+        if (g[(r + i) * 9 + (c + j)] === n) return false;
     return true;
   }
   fillGrid(grid) {
@@ -362,43 +441,43 @@ class SudokuLogic {
     }
     return true;
   }
-  generate(difficulty) {
-    let g = new Array(81).fill(0);
-    this.fillBox(g, 0, 0);
-    this.fillBox(g, 3, 3);
-    this.fillBox(g, 6, 6);
-    this.fillGrid(g);
-    let s = [...g];
-
-    let attempts;
-    if (difficulty === "easy") attempts = 30;
-    else if (difficulty === "hard") attempts = 55;
-    else attempts = 45;
-
-    let k = attempts;
-    while (k > 0) {
-      let x = Math.floor(Math.random() * 81);
-      if (g[x] !== 0) {
-        g[x] = 0;
-        k--;
-      }
-    }
-    return { initial: g, solution: s };
-  }
-  fillBox(g, r, c) {
-    for (let i = 0; i < 3; i++)
-      for (let j = 0; j < 3; j++) {
-        let n;
-        do {
-          n = Math.floor(Math.random() * 9) + 1;
-        } while (!this.isSafe(g, r, c, n));
-        g[(r + i) * 9 + (c + j)] = n;
-      }
-  }
-  isSafe(g, r, c, n) {
+  isValid(grid, row, col, num) {
+    for (let x = 0; x < 9; x++) if (grid[row * 9 + x] === num) return false;
+    for (let x = 0; x < 9; x++) if (grid[x * 9 + col] === num) return false;
+    let sr = row - (row % 3),
+      sc = col - (col % 3);
     for (let i = 0; i < 3; i++)
       for (let j = 0; j < 3; j++)
-        if (g[(r + i) * 9 + (c + j)] === n) return false;
+        if (grid[(sr + i) * 9 + (sc + j)] === num) return false;
+    return true;
+  }
+
+  // NOUVEAU : Validation complète de la grille selon les règles (sans solution de ref)
+  validateFullGrid(grid) {
+    // 1. Vérifier qu'elle est pleine
+    if (grid.includes(0)) return false;
+
+    // 2. Vérifier Lignes, Colonnes, Blocs
+    for (let i = 0; i < 9; i++) {
+      let row = new Set(),
+        col = new Set(),
+        box = new Set();
+      for (let j = 0; j < 9; j++) {
+        let rVal = grid[i * 9 + j];
+        let cVal = grid[j * 9 + i];
+        let bVal =
+          grid[
+            (Math.floor(i / 3) * 3 + Math.floor(j / 3)) * 9 +
+              (i % 3) * 3 +
+              (j % 3)
+          ];
+
+        if (row.has(rVal) || col.has(cVal) || box.has(bVal)) return false;
+        row.add(rVal);
+        col.add(cVal);
+        box.add(bVal);
+      }
+    }
     return true;
   }
 }
@@ -419,6 +498,8 @@ class Game {
     this.timerInterval = null;
     this.lastScores = null;
     this.difficulty = "medium";
+    this.cellColors = []; // NOUVEAU: Stocke la couleur des cases en mode Territoire
+    this.totalEmptyStart = 0; // NOUVEAU: Pour le % Speedrun
 
     this.gridEl = document.getElementById("grid-container");
     this.gridEl.addEventListener("click", (e) => {
@@ -457,7 +538,7 @@ class Game {
     const data = {
       board: this.board,
       initial: this.initial,
-      solution: this.solution,
+      solution: this.solution, // Note: On garde la solution originale pour ref en cas de besoin, mais on validera par logique
       notes: this.notes,
       timer: this.timerSeconds,
       difficulty: this.difficulty,
@@ -472,6 +553,7 @@ class Game {
     this.notes = data.notes;
     this.difficulty = data.difficulty;
     this.history = [];
+    this.cellColors = new Array(81).fill(null); // Reset colors
 
     this.timerSeconds = data.timer || 0;
     this.isPaused = false;
@@ -487,6 +569,7 @@ class Game {
     this.solution = [...data.solution];
     this.notes = {};
     this.history = [];
+    this.cellColors = new Array(81).fill(null);
     this.isPaused = false;
 
     localStorage.removeItem("sudoku_solo_save");
@@ -496,13 +579,15 @@ class Game {
     this.saveLocalGame();
   }
 
-  initMultiplayer(initialGrid, playersList) {
+  initMultiplayer(initialGrid, playersList, totalEmpty) {
     this.initial = [...initialGrid];
     this.board = [...initialGrid];
     this.solution = null;
     this.players = playersList;
     this.notes = {};
     this.history = [];
+    this.cellColors = new Array(81).fill(null); // Init couleurs vides
+    this.totalEmptyStart = totalEmpty || 81;
     this.isPaused = false;
     this.renderGrid();
     this.startTimer();
@@ -589,10 +674,18 @@ class Game {
       } else if (this.board[i] !== 0) {
         cell.textContent = this.board[i];
         cell.classList.add("user-input");
-        if (app.currentMode === "solo" && this.board[i] !== this.solution[i]) {
-          cell.classList.add("error");
-        }
+        // Check error only in Solo and strict checking logic
+        // En multi, le serveur gère.
       }
+
+      // APPLICATION COULEUR TERRITOIRE (Correctif Bug)
+      if (app.currentMode === "territory" && this.cellColors[i]) {
+        cell.style.backgroundColor = this.cellColors[i];
+        cell.style.borderColor = this.cellColors[i];
+        cell.classList.add("owned");
+        cell.classList.remove("user-input");
+      }
+
       if (this.board[i] === 0 && this.notes[i] && this.notes[i].length > 0) {
         const noteGrid = document.createElement("div");
         noteGrid.className = "note-grid";
@@ -709,6 +802,7 @@ class Game {
       return;
     }
 
+    // SOLO LOGIC
     if (this.isNoteMode) {
       this.toggleNoteNumber(num);
     } else {
@@ -717,7 +811,10 @@ class Game {
       if (num === 0) this.board[this.selectedCellIndex] = 0;
 
       this.saveLocalGame();
-      this.checkSoloWin();
+      // NOUVEAU: Check global rule validity
+      if (this.localLogic.validateFullGrid(this.board)) {
+        this.triggerSoloWin();
+      }
     }
     this.renderGrid();
   }
@@ -738,6 +835,9 @@ class Game {
 
   updateTerritory(data) {
     this.board[data.index] = data.value;
+    // NOUVEAU: Stocker la couleur pour qu'elle persiste
+    this.cellColors[data.index] = data.color;
+
     const cell = document.querySelector(`.cell[data-index='${data.index}']`);
     if (cell) {
       cell.textContent = data.value;
@@ -757,33 +857,32 @@ class Game {
   }
 
   checkProgress() {
-    let filled = this.board.filter((x) => x !== 0).length;
-    let total = 81;
-    let percent = (filled / total) * 100;
+    // NOUVEAU : Calcul basé sur les cases vides au départ (totalEmptyStart)
+    let currentEmpty = this.board.filter((x) => x === 0).length;
+    let filledByUser = this.totalEmptyStart - currentEmpty;
+
+    // Sécurité division par zéro
+    if (this.totalEmptyStart === 0) this.totalEmptyStart = 1;
+
+    let percent = (filledByUser / this.totalEmptyStart) * 100;
+    // Clamp à 100%
+    if (percent > 100) percent = 100;
+    if (percent < 0) percent = 0;
+
     socket.emit("update_progress", {
       roomCode: app.roomCode,
       progress: percent,
     });
   }
 
-  checkSoloWin() {
-    let isFull = true;
-    let isCorrect = true;
-    for (let i = 0; i < 81; i++) {
-      if (this.board[i] === 0) {
-        isFull = false;
-        break;
-      }
-      if (this.board[i] !== this.solution[i]) isCorrect = false;
-    }
-    if (isFull && isCorrect) {
-      this.stopTimer();
-      localStorage.removeItem("sudoku_solo_save");
-      const modal = document.getElementById("solo-win-modal");
-      if (modal) modal.classList.remove("hidden");
-      else alert("Gagné !");
-    }
+  triggerSoloWin() {
+    this.stopTimer();
+    localStorage.removeItem("sudoku_solo_save");
+    const modal = document.getElementById("solo-win-modal");
+    if (modal) modal.classList.remove("hidden");
+    else alert("Gagné !");
   }
 }
 
 const game = new Game();
+app.init(); // Auto-reconnect if URL params exist
