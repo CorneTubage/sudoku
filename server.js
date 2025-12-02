@@ -96,7 +96,7 @@ io.on("connection", (socket) => {
       players: [],
       gameData: null,
       territoryMap: [],
-      startTime: null, // NOUVEAU : Stockage heure début
+      startTime: null,
     };
     socket.emit("room_created", roomCode);
   });
@@ -116,9 +116,18 @@ io.on("connection", (socket) => {
     if (existingPlayerIndex !== -1) {
       const player = room.players[existingPlayerIndex];
       const oldId = player.id;
-      player.id = socket.id;
+      player.id = socket.id; // Nouvel ID Socket
 
       if (room.host === oldId) room.host = socket.id;
+
+      // FIX TERRITOIRE : Mettre à jour la carte avec le nouvel ID
+      if (room.mode === "territory") {
+        for (let i = 0; i < 81; i++) {
+          if (room.territoryMap[i] === oldId) {
+            room.territoryMap[i] = socket.id;
+          }
+        }
+      }
 
       socket.join(roomCode);
 
@@ -131,8 +140,6 @@ io.on("connection", (socket) => {
 
       if (room.state === "playing") {
         const totalEmpty = room.gameData.initial.filter((x) => x === 0).length;
-
-        // NOUVEAU : Calcul du temps écoulé en secondes
         const elapsed = room.startTime
           ? Math.floor((Date.now() - room.startTime) / 1000)
           : 0;
@@ -141,12 +148,13 @@ io.on("connection", (socket) => {
           initial: room.gameData.initial,
           players: room.players,
           totalEmpty: totalEmpty,
-          timer: elapsed, // Envoi du timer
+          timer: elapsed,
         });
 
         if (room.mode === "territory") {
           for (let i = 0; i < 81; i++) {
             if (room.territoryMap[i]) {
+              // Maintenant on trouve le owner car on a mis à jour l'ID juste avant
               const owner = room.players.find(
                 (p) => p.id === room.territoryMap[i]
               );
@@ -203,12 +211,6 @@ io.on("connection", (socket) => {
       "#fde047",
       "#d8b4fe",
       "#fdba74",
-      "#6ee7b7",
-      "#f9a8d4",
-      "#a5b4fc",
-      "#f87171",
-      "#34d399",
-      "#60a5fa",
     ];
     const playerColor = colors[room.players.length % colors.length];
 
@@ -315,7 +317,7 @@ io.on("connection", (socket) => {
 
     room.gameData = sudokuGen.generate(room.difficulty);
     room.state = "playing";
-    room.startTime = Date.now(); // NOUVEAU : Enregistrement heure départ
+    room.startTime = Date.now();
 
     const totalEmpty = room.gameData.initial.filter((x) => x === 0).length;
 
@@ -330,7 +332,7 @@ io.on("connection", (socket) => {
       initial: room.gameData.initial,
       players: room.players,
       totalEmpty: totalEmpty,
-      timer: 0, // Départ à 0
+      timer: 0,
     });
   });
 

@@ -268,10 +268,11 @@ socket.on("update_lobby", (data) => {
 socket.on("refresh_players", (players) => {
   game.players = players;
 
+  // FIX : Annuler le message si le joueur est revenu (basé sur le username)
   players.forEach((p) => {
-    if (app.pendingDisconnects[p.id]) {
-      clearTimeout(app.pendingDisconnects[p.id]);
-      delete app.pendingDisconnects[p.id];
+    if (app.pendingDisconnects[p.username]) {
+      clearTimeout(app.pendingDisconnects[p.username]);
+      delete app.pendingDisconnects[p.username];
     }
   });
 
@@ -297,7 +298,6 @@ socket.on("game_started", (data) => {
 
   app.updateControls();
 
-  // CORRECTION : Transmission du timer au jeu
   game.initMultiplayer(data.initial, data.players, data.totalEmpty, data.timer);
 
   if (data.players) {
@@ -310,9 +310,10 @@ socket.on("game_started", (data) => {
 
 socket.on("player_left_game", (data) => {
   if (data.temporary) {
-    app.pendingDisconnects[data.id] = setTimeout(() => {
+    // FIX : Stocker le timer avec la clé USERNAME
+    app.pendingDisconnects[data.username] = setTimeout(() => {
       showDisconnectNotification(data.username, true);
-      delete app.pendingDisconnects[data.id];
+      delete app.pendingDisconnects[data.username];
     }, 1000);
   } else {
     showDisconnectNotification(data.username, false);
