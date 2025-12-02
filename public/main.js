@@ -12,6 +12,7 @@ const app = {
   username: "Joueur",
   myId: null,
   myColor: "#86efac",
+  pendingDisconnects: {},
 
   init: () => {
     const params = new URLSearchParams(window.location.search);
@@ -20,6 +21,7 @@ const app = {
 
     if (urlRoom && urlUser) {
       document.getElementById("username").value = urlUser;
+      app.username = urlUser;
       app.joinRoom(urlRoom);
     }
   },
@@ -33,17 +35,16 @@ const app = {
     } else {
       const url = new URL(window.location);
       url.searchParams.delete("room");
-      url.searchParams.delete("user"); // Nettoyer aussi le user si on veut
+      url.searchParams.delete("user");
       window.history.pushState({}, "", url);
     }
   },
 
-  // NOUVEAU : Retour propre au menu sans reload
   returnToMenu: () => {
     app.roomCode = null;
-    app.updateUrl(); // Nettoie l'URL
+    app.updateUrl();
     app.showScreen("screen-menu");
-    game.board = []; // Reset visual board
+    game.board = [];
     document.getElementById("grid-container").innerHTML = "";
   },
 
@@ -135,7 +136,6 @@ const app = {
       "Mode Solo (" + difficulty + ")";
     document.getElementById("btn-pause").classList.remove("hidden");
 
-    // Clean URL pour le solo
     const url = new URL(window.location);
     url.searchParams.delete("room");
     window.history.pushState({}, "", url);
@@ -224,7 +224,9 @@ socket.on("update_lobby", (data) => {
                 <div class="w-3 h-3 rounded-full" style="background:${
                   p.color
                 }"></div> 
-                <span class="font-bold text-slate-700">${p.username}</span>
+                <span class="font-bold text-slate-700">${
+                  p.username || "Joueur"
+                }</span>
             </div>
             ${
               data.hostId === p.id
@@ -263,11 +265,17 @@ socket.on("update_lobby", (data) => {
   }
 });
 
-// NOUVEAU : Force la mise à jour de la liste des joueurs en jeu (pour les reconnexions)
 socket.on("refresh_players", (players) => {
   game.players = players;
+
+  players.forEach((p) => {
+    if (app.pendingDisconnects[p.id]) {
+      clearTimeout(app.pendingDisconnects[p.id]);
+      delete app.pendingDisconnects[p.id];
+    }
+  });
+
   if (app.currentMode === "territory") {
-    // En territoire on réaffiche les scores
     updateHudScores(
       game.lastScores || players.map((p) => ({ id: p.id, score: p.score }))
     );
@@ -289,10 +297,9 @@ socket.on("game_started", (data) => {
 
   app.updateControls();
 
-  // CORRECTION : On initialise les joueurs AVANT de dessiner le HUD
-  game.initMultiplayer(data.initial, data.players, data.totalEmpty);
+  // CORRECTION : Transmission du timer au jeu
+  game.initMultiplayer(data.initial, data.players, data.totalEmpty, data.timer);
 
-  // Initialisation affichage HUD
   if (data.players) {
     if (app.currentMode === "territory")
       updateHudScores(data.players.map((p) => ({ id: p.id, score: 0 })));
@@ -302,22 +309,29 @@ socket.on("game_started", (data) => {
 });
 
 socket.on("player_left_game", (data) => {
-  const hud = document.getElementById("players-hud");
-  const notif = document.createElement("div");
-  notif.className =
-    "text-xs text-red-500 font-bold bg-white p-1 rounded shadow mb-1";
-  // Message différent si c'est temporaire ou définitif
-  notif.innerText = data.temporary
-    ? `${data.username} déconnecté...`
-    : `${data.username} a quitté.`;
-  hud.prepend(notif);
-  setTimeout(() => notif.remove(), 5000);
-
-  if (!data.temporary) {
+  if (data.temporary) {
+    app.pendingDisconnects[data.id] = setTimeout(() => {
+      showDisconnectNotification(data.username, true);
+      delete app.pendingDisconnects[data.id];
+    }, 1000);
+  } else {
+    showDisconnectNotification(data.username, false);
     game.players = game.players.filter((p) => p.id !== data.id);
     if (game.lastScores) updateHudScores(game.lastScores);
   }
 });
+
+function showDisconnectNotification(username, isTemp) {
+  const hud = document.getElementById("players-hud");
+  const notif = document.createElement("div");
+  notif.className =
+    "text-xs text-red-500 font-bold bg-white p-1 rounded shadow mb-1";
+  notif.innerText = isTemp
+    ? `${username} déconnecté...`
+    : `${username} a quitté.`;
+  hud.prepend(notif);
+  setTimeout(() => notif.remove(), 5000);
+}
 
 socket.on("territory_update", (data) => {
   if (data.index !== -1) {
@@ -346,7 +360,6 @@ socket.on("game_over", (data) => {
   }
 
   alert(`Partie terminée ! Vainqueur : ${data.winner}`);
-  // Utilisation de la nouvelle fonction pour nettoyer l'URL
   setTimeout(() => app.returnToMenu(), 5000);
 });
 
@@ -367,7 +380,9 @@ function updateHudScores(scores) {
       if (player) {
         const div = document.createElement("div");
         div.className = "flex justify-between";
-        div.innerHTML = `<span style="color:${player.color}">${player.username}</span> <span>${s.score} pts</span>`;
+        div.innerHTML = `<span style="color:${player.color}">${
+          player.username || "Joueur"
+        }</span> <span>${s.score} pts</span>`;
         hud.appendChild(div);
       }
     });
@@ -389,7 +404,7 @@ function updateHudProgress(players) {
         div.innerHTML = `
               <div class="flex justify-between text-xs mb-1"><span style="color:${
                 playerObj.color
-              }">${p.username}</span> <span>${Math.round(
+              }">${playerObj.username || "Joueur"}</span> <span>${Math.round(
           p.progress
         )}%</span></div>
               <div class="h-1 bg-slate-200 rounded-full overflow-hidden">
@@ -600,18 +615,18 @@ class Game {
     this.saveLocalGame();
   }
 
-  initMultiplayer(initialGrid, playersList, totalEmpty) {
+  initMultiplayer(initialGrid, playersList, totalEmpty, timerStart = 0) {
     this.initial = [...initialGrid];
     this.board = [...initialGrid];
     this.solution = null;
-    this.players = playersList || []; // Sécurité
+    this.players = playersList || [];
     this.notes = {};
     this.history = [];
     this.cellColors = new Array(81).fill(null);
     this.totalEmptyStart = totalEmpty || 81;
     this.isPaused = false;
     this.renderGrid();
-    this.startTimer();
+    this.startTimer(timerStart);
   }
 
   startTimer(startAt = 0) {

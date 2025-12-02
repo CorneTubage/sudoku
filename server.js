@@ -96,6 +96,7 @@ io.on("connection", (socket) => {
       players: [],
       gameData: null,
       territoryMap: [],
+      startTime: null, // NOUVEAU : Stockage heure début
     };
     socket.emit("room_created", roomCode);
   });
@@ -107,23 +108,20 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // --- RECONNEXION INTELLIGENTE ---
-    // On vérifie si le pseudo existe déjà (simulation de session)
+    // --- RECONNEXION ---
     const existingPlayerIndex = room.players.findIndex(
       (p) => p.username === username
     );
 
     if (existingPlayerIndex !== -1) {
-      // C'est un retour !
       const player = room.players[existingPlayerIndex];
       const oldId = player.id;
-      player.id = socket.id; // Mise à jour ID technique
+      player.id = socket.id;
 
       if (room.host === oldId) room.host = socket.id;
 
       socket.join(roomCode);
 
-      // 1. Dire au joueur qu'il est connecté
       socket.emit("joined_success", {
         roomCode,
         playerId: socket.id,
@@ -131,28 +129,27 @@ io.on("connection", (socket) => {
         color: player.color,
       });
 
-      // 2. Si partie en cours, synchroniser
       if (room.state === "playing") {
         const totalEmpty = room.gameData.initial.filter((x) => x === 0).length;
+
+        // NOUVEAU : Calcul du temps écoulé en secondes
+        const elapsed = room.startTime
+          ? Math.floor((Date.now() - room.startTime) / 1000)
+          : 0;
 
         socket.emit("game_started", {
           initial: room.gameData.initial,
           players: room.players,
           totalEmpty: totalEmpty,
+          timer: elapsed, // Envoi du timer
         });
 
-        // Restaurer Territoire
         if (room.mode === "territory") {
-          // Pour repeindre la grille visuelle du joueur
           for (let i = 0; i < 81; i++) {
             if (room.territoryMap[i]) {
               const owner = room.players.find(
                 (p) => p.id === room.territoryMap[i]
               );
-              // Note: Si l'ID du owner a changé entre temps, il faut le retrouver par pseudo,
-              // mais pour simplifier ici on espère que les IDs sont sync.
-              // Idéalement on stockerait les owner par pseudo dans territoryMap.
-              // Hack rapide : on envoie tout ce qu'on a.
               if (owner) {
                 socket.emit("territory_update", {
                   index: i,
@@ -169,11 +166,8 @@ io.on("connection", (socket) => {
           }
         }
 
-        // IMPORTANT : Dire à TOUT LE MONDE que la liste des joueurs est à jour
-        // Cela force le réaffichage du HUD chez les autres qui avaient vu ce joueur partir
         io.to(roomCode).emit("refresh_players", room.players);
 
-        // Renvoyer les progressions speedrun
         if (room.mode === "speedrun") {
           io.to(roomCode).emit(
             "progress_update",
@@ -186,7 +180,6 @@ io.on("connection", (socket) => {
           );
         }
       } else {
-        // Lobby update
         io.to(roomCode).emit("update_lobby", {
           players: room.players,
           mode: room.mode,
@@ -210,6 +203,12 @@ io.on("connection", (socket) => {
       "#fde047",
       "#d8b4fe",
       "#fdba74",
+      "#6ee7b7",
+      "#f9a8d4",
+      "#a5b4fc",
+      "#f87171",
+      "#34d399",
+      "#60a5fa",
     ];
     const playerColor = colors[room.players.length % colors.length];
 
@@ -269,16 +268,13 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
 
-    // Si jeu en cours et pas de départ volontaire, on garde le joueur en mémoire (soft disconnect)
     if (room.state === "playing" && !forceRemove) {
-      // On signale quand même aux autres qu'il est parti (visuellement)
-      // Mais on ne le supprime pas du tableau room.players
       const p = room.players.find((p) => p.id === socket.id);
       if (p) {
         io.to(roomCode).emit("player_left_game", {
           id: socket.id,
           username: p.username,
-          temporary: true, // Nouveau flag pour dire "il pourrait revenir"
+          temporary: true,
         });
       }
       return;
@@ -319,12 +315,12 @@ io.on("connection", (socket) => {
 
     room.gameData = sudokuGen.generate(room.difficulty);
     room.state = "playing";
+    room.startTime = Date.now(); // NOUVEAU : Enregistrement heure départ
 
     const totalEmpty = room.gameData.initial.filter((x) => x === 0).length;
 
     if (room.mode === "territory") room.territoryMap = new Array(81).fill(null);
 
-    // Reset scores pour être sûr
     room.players.forEach((p) => {
       p.score = 0;
       p.progress = 0;
@@ -334,6 +330,7 @@ io.on("connection", (socket) => {
       initial: room.gameData.initial,
       players: room.players,
       totalEmpty: totalEmpty,
+      timer: 0, // Départ à 0
     });
   });
 
@@ -371,8 +368,7 @@ io.on("connection", (socket) => {
             winner: winner.username,
             fullGrid: room.gameData.solution,
           });
-          room.state = "finished"; // Fermer la salle
-          // Optionnel : delete rooms[roomCode] après délai
+          room.state = "finished";
         }
       } else if (!isCorrect) {
         player.score -= 5;
