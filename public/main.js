@@ -20,7 +20,6 @@ const app = {
 
     if (urlRoom && urlUser) {
       document.getElementById("username").value = urlUser;
-      // On lance la connexion automatiquement
       app.joinRoom(urlRoom);
     }
   },
@@ -34,8 +33,18 @@ const app = {
     } else {
       const url = new URL(window.location);
       url.searchParams.delete("room");
+      url.searchParams.delete("user"); // Nettoyer aussi le user si on veut
       window.history.pushState({}, "", url);
     }
+  },
+
+  // NOUVEAU : Retour propre au menu sans reload
+  returnToMenu: () => {
+    app.roomCode = null;
+    app.updateUrl(); // Nettoie l'URL
+    app.showScreen("screen-menu");
+    game.board = []; // Reset visual board
+    document.getElementById("grid-container").innerHTML = "";
   },
 
   showScreen: (id) => {
@@ -126,6 +135,7 @@ const app = {
       "Mode Solo (" + difficulty + ")";
     document.getElementById("btn-pause").classList.remove("hidden");
 
+    // Clean URL pour le solo
     const url = new URL(window.location);
     url.searchParams.delete("room");
     window.history.pushState({}, "", url);
@@ -164,9 +174,7 @@ const app = {
   leaveLobby: () => {
     if (app.roomCode) {
       socket.emit("leave_room", app.roomCode);
-      app.roomCode = null;
-      app.updateUrl();
-      app.showScreen("screen-menu");
+      app.returnToMenu();
     }
   },
 
@@ -179,8 +187,7 @@ const app = {
       if (app.roomCode) {
         socket.emit("leave_room", app.roomCode);
       }
-      app.updateUrl();
-      location.reload();
+      app.returnToMenu();
     }
   },
 };
@@ -256,6 +263,19 @@ socket.on("update_lobby", (data) => {
   }
 });
 
+// NOUVEAU : Force la mise à jour de la liste des joueurs en jeu (pour les reconnexions)
+socket.on("refresh_players", (players) => {
+  game.players = players;
+  if (app.currentMode === "territory") {
+    // En territoire on réaffiche les scores
+    updateHudScores(
+      game.lastScores || players.map((p) => ({ id: p.id, score: p.score }))
+    );
+  } else {
+    updateHudProgress(players.map((p) => ({ id: p.id, progress: p.progress })));
+  }
+});
+
 socket.on("game_started", (data) => {
   app.showScreen("screen-game");
   document.getElementById("multi-hud").classList.remove("hidden");
@@ -269,14 +289,16 @@ socket.on("game_started", (data) => {
 
   app.updateControls();
 
+  // CORRECTION : On initialise les joueurs AVANT de dessiner le HUD
+  game.initMultiplayer(data.initial, data.players, data.totalEmpty);
+
+  // Initialisation affichage HUD
   if (data.players) {
     if (app.currentMode === "territory")
       updateHudScores(data.players.map((p) => ({ id: p.id, score: 0 })));
     else
       updateHudProgress(data.players.map((p) => ({ id: p.id, progress: 0 })));
   }
-
-  game.initMultiplayer(data.initial, data.players, data.totalEmpty);
 });
 
 socket.on("player_left_game", (data) => {
@@ -284,16 +306,20 @@ socket.on("player_left_game", (data) => {
   const notif = document.createElement("div");
   notif.className =
     "text-xs text-red-500 font-bold bg-white p-1 rounded shadow mb-1";
-  notif.innerText = `${data.username} a quitté.`;
+  // Message différent si c'est temporaire ou définitif
+  notif.innerText = data.temporary
+    ? `${data.username} déconnecté...`
+    : `${data.username} a quitté.`;
   hud.prepend(notif);
   setTimeout(() => notif.remove(), 5000);
 
-  game.players = game.players.filter((p) => p.id !== data.id);
-  if (game.lastScores) updateHudScores(game.lastScores);
+  if (!data.temporary) {
+    game.players = game.players.filter((p) => p.id !== data.id);
+    if (game.lastScores) updateHudScores(game.lastScores);
+  }
 });
 
 socket.on("territory_update", (data) => {
-  // Si index est -1, c'est juste un update de score, pas de grille
   if (data.index !== -1) {
     game.updateTerritory(data);
   }
@@ -320,7 +346,8 @@ socket.on("game_over", (data) => {
   }
 
   alert(`Partie terminée ! Vainqueur : ${data.winner}`);
-  setTimeout(() => location.reload(), 5000);
+  // Utilisation de la nouvelle fonction pour nettoyer l'URL
+  setTimeout(() => app.returnToMenu(), 5000);
 });
 
 socket.on("error", (msg) => alert(msg));
@@ -577,7 +604,7 @@ class Game {
     this.initial = [...initialGrid];
     this.board = [...initialGrid];
     this.solution = null;
-    this.players = playersList;
+    this.players = playersList || []; // Sécurité
     this.notes = {};
     this.history = [];
     this.cellColors = new Array(81).fill(null);
