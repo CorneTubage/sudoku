@@ -268,7 +268,6 @@ socket.on("update_lobby", (data) => {
 socket.on("refresh_players", (players) => {
   game.players = players;
 
-  // FIX : Annuler le message si le joueur est revenu (basé sur le username)
   players.forEach((p) => {
     if (app.pendingDisconnects[p.username]) {
       clearTimeout(app.pendingDisconnects[p.username]);
@@ -310,7 +309,6 @@ socket.on("game_started", (data) => {
 
 socket.on("player_left_game", (data) => {
   if (data.temporary) {
-    // FIX : Stocker le timer avec la clé USERNAME
     app.pendingDisconnects[data.username] = setTimeout(() => {
       showDisconnectNotification(data.username, true);
       delete app.pendingDisconnects[data.username];
@@ -844,6 +842,7 @@ class Game {
       if (num === 0) this.board[this.selectedCellIndex] = 0;
 
       this.saveLocalGame();
+      // VERIFICATION SPEEDRUN FIN
       if (this.localLogic.validateFullGrid(this.board)) {
         this.triggerSoloWin();
       }
@@ -894,6 +893,21 @@ class Game {
     if (this.totalEmptyStart === 0) this.totalEmptyStart = 1;
 
     let percent = (filledByUser / this.totalEmptyStart) * 100;
+
+    // FIX: Ne pas déclarer victoire (100%) si la grille est fausse
+    if (currentEmpty === 0) {
+      const isValid = this.localLogic.validateFullGrid(this.board);
+      if (!isValid) {
+        percent = 99; // Bloquer à 99%
+        // Feedback visuel
+        const grid = document.getElementById("grid-container");
+        grid.classList.remove("animate-shake");
+        void grid.offsetWidth; // Trigger reflow
+        grid.classList.add("animate-shake");
+        setTimeout(() => grid.classList.remove("animate-shake"), 500);
+      }
+    }
+
     if (percent > 100) percent = 100;
     if (percent < 0) percent = 0;
 
